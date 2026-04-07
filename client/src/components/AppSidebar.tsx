@@ -1,3 +1,4 @@
+import { useState, useEffect } from 'react';
 import { Link, useLocation } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import type { Axiom, Tension, Revision } from "@shared/schema";
@@ -47,6 +48,68 @@ function NavCount({ queryKey }: { queryKey: string | null }) {
     <span className="font-mono text-xs text-sidebar-foreground/40 tabular-nums">
       {data.length}
     </span>
+  );
+}
+
+type SensitivityLevel = 'low' | 'medium' | 'high';
+
+function SensitivityControl() {
+  const [sensitivity, setSensitivity] = useState<SensitivityLevel>('medium');
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    fetch('/api/settings/sensitivity')
+      .then(r => r.json())
+      .then((d: { sensitivity?: string }) => {
+        if (d.sensitivity === 'low' || d.sensitivity === 'medium' || d.sensitivity === 'high') {
+          setSensitivity(d.sensitivity);
+        }
+      })
+      .catch(() => {});
+  }, []);
+
+  const update = async (val: SensitivityLevel) => {
+    if (saving) return;
+    setSensitivity(val);
+    setSaving(true);
+    try {
+      await fetch('/api/settings/sensitivity', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sensitivity: val }),
+      });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const pills: { val: SensitivityLevel; label: string }[] = [
+    { val: 'low', label: 'LOW' },
+    { val: 'medium', label: 'MED' },
+    { val: 'high', label: 'HIGH' },
+  ];
+
+  return (
+    <div className="px-5 pb-4">
+      <div className="text-[9px] text-sidebar-foreground/25 font-mono uppercase tracking-wider mb-2">
+        Loop Sensitivity
+      </div>
+      <div className="flex gap-1">
+        {pills.map(({ val, label }) => (
+          <button
+            key={val}
+            onClick={() => update(val)}
+            className={`flex-1 text-[9px] font-mono uppercase tracking-wider py-1.5 rounded-sm border transition-all duration-150 ${
+              sensitivity === val
+                ? 'border-[#FFD166] text-[#FFD166] bg-[#FFD166]/8'
+                : 'border-sidebar-border text-sidebar-foreground/25 hover:text-sidebar-foreground/50 hover:border-sidebar-foreground/30'
+            }`}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+    </div>
   );
 }
 
@@ -131,8 +194,13 @@ export default function AppSidebar() {
         </Link>
       </div>
 
+      {/* Sensitivity */}
+      <div className="mt-auto">
+        <SensitivityControl />
+      </div>
+
       {/* Footer */}
-      <div className="mt-auto px-5 pb-6">
+      <div className="px-5 pb-6">
         <div className="text-[10px] text-sidebar-foreground/25 font-mono uppercase tracking-wider leading-relaxed">
           AXIOM OS<br />
           Fourth Tool

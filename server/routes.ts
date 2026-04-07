@@ -98,5 +98,43 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     res.status(204).send();
   });
 
+  // ─── Sensitivity proxy → Lumen ──────────────────────────────────────────────
+  app.get('/api/settings/sensitivity', async (_req: any, res: any) => {
+    const LUMEN_API_URL = process.env.LUMEN_API_URL;
+    const TOKEN = process.env.LUMEN_INTERNAL_TOKEN;
+    const USER_ID = process.env.LUMEN_USER_ID || '1';
+    if (!LUMEN_API_URL || !TOKEN) return res.json({ sensitivity: 'medium' });
+    try {
+      const r = await fetch(`${LUMEN_API_URL}/api/epistemic/sensitivity/${USER_ID}`, {
+        headers: { 'x-lumen-internal-token': TOKEN },
+      });
+      if (!r.ok) return res.json({ sensitivity: 'medium' });
+      const data = await r.json() as { sensitivity: string };
+      return res.json(data);
+    } catch {
+      return res.json({ sensitivity: 'medium' });
+    }
+  });
+
+  app.post('/api/settings/sensitivity', async (req: any, res: any) => {
+    const LUMEN_API_URL = process.env.LUMEN_API_URL;
+    const TOKEN = process.env.LUMEN_INTERNAL_TOKEN;
+    const USER_ID = process.env.LUMEN_USER_ID || '1';
+    const { sensitivity } = req.body as { sensitivity: string };
+    if (!LUMEN_API_URL || !TOKEN) return res.json({ sensitivity: sensitivity || 'medium' });
+    try {
+      const r = await fetch(`${LUMEN_API_URL}/api/epistemic/sensitivity/${USER_ID}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-lumen-internal-token': TOKEN },
+        body: JSON.stringify({ sensitivity }),
+      });
+      if (!r.ok) return res.json({ sensitivity: sensitivity || 'medium' });
+      const data = await r.json() as { sensitivity: string };
+      return res.json(data);
+    } catch {
+      return res.json({ sensitivity: sensitivity || 'medium' });
+    }
+  });
+
   return httpServer;
 }
