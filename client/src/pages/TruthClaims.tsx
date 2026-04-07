@@ -40,6 +40,16 @@ function AxiomRow({ axiom }: { axiom: Axiom }) {
               parallax={axiom.parallaxCount}
               praxis={axiom.praxisCount}
             />
+            {(axiom as any).source === 'seeded' && (
+              <span className="font-mono text-[9px] uppercase tracking-wider text-amber-500/40">
+                seeded
+              </span>
+            )}
+            {(axiom as any).source === 'lumen_push' && (
+              <span className="font-mono text-[9px] uppercase tracking-wider text-blue-400/40">
+                discovered
+              </span>
+            )}
             <span className="text-[10px] font-mono text-muted-foreground/30">
               {new Date(axiom.updatedAt).toLocaleDateString("en-US", {
                 year: "numeric",

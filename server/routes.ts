@@ -2,7 +2,59 @@ import type { Express } from "express";
 import type { Server } from "http";
 import { storage } from "./storage";
 import { insertAxiomSchema, insertTensionSchema, insertRevisionSchema } from "@shared/schema";
+import type { Axiom, Tension, Revision, InsertAxiom } from "@shared/schema";
 import { requireAuth, getUserId, verifyLumenToken } from "./auth";
+import OpenAI from 'openai';
+
+const ENRICHMENT_SYSTEM_PROMPT = `You are an epistemic synthesis engine inside a philosophical operating system called Axiom. You transform observed evidence about a person into truth claims that are specific, earned, and interpretively meaningful.
+
+Given signal inputs (raw observations, patterns, or reflections), produce FIVE epistemically distinct layers. Each layer must be clearly different from the one before it — do not paraphrase or repeat.
+
+SIGNAL: What is the core observable fact? Be specific — cite counts, patterns, concrete observations. Do not interpret yet. Identify what is genuinely there and worth noting.
+
+CONVERGENCE: Why does this signal matter structurally? What about its frequency, cross-source consistency, or durability makes it more than noise? Where do multiple observations align meaningfully?
+
+INTERPRETATION: What does this convergence reveal? Infer the underlying orientation, tendency, or principle. Go one level beyond the data — synthesize, don't describe. What does it mean that this pattern exists?
+
+TRUTH CLAIM (1-2 sentences): The distilled epistemic claim. A specific, non-obvious insight proportional to the evidence. Not a platitude. If evidence is thin, express appropriate provisionality.
+
+WORKING PRINCIPLE (1 sentence): How this truth should govern future action, judgment, or orientation. Phrase as an actionable rule. Example formats: "When X arises, treat it as Y." / "Before deciding Z, check whether..." / "Treat [pattern] as structural rather than situational unless..."
+
+Return ONLY a valid JSON object with keys: signal, convergence, interpretation, truthClaim, workingPrinciple`;
+
+const PREAMBLE_SYSTEM_PROMPT = `You are writing the preamble to a living personal constitution inside a philosophical operating system.
+
+The preamble should be 3-5 sentences. It must:
+- Synthesize the SPIRIT of the constitution — its core orientations, tensions, and conditions of formation
+- Sound like a constitutional preface: earned, cumulative, serious, specific
+- NOT list or enumerate the axioms — synthesize their spirit into coherent prose
+- NOT sound like self-help, AI-generated inspiration, or vague profundity
+- Use impersonal or document-voice ("This constitution...", "The principles here...")
+- Note the provisional, revisable nature without making it sound weak
+
+Return ONLY the preamble text — no JSON, no headers, no explanation.`;
+
+function generateTemplatePreamble(axioms: Axiom[], tensions: Tension[], revisions: Revision[]): string {
+  const high = axioms.filter(a => ['high', 'medium-high'].includes(a.confidence));
+  const total = axioms.length;
+  const tensionCount = tensions.length;
+  const revCount = revisions.length;
+
+  let p = `This constitution is assembled from ${total} truth claim${total !== 1 ? 's' : ''}, ${tensionCount} active tension${tensionCount !== 1 ? 's' : ''}, and ${revCount} recorded revision${revCount !== 1 ? 's' : ''}.`;
+
+  if (high.length > 0) {
+    const sample = high.slice(0, 2).map(a => `"${a.truthClaim.slice(0, 80)}${a.truthClaim.length > 80 ? '...' : ''}"`).join(' and ');
+    p += ` Its high-confidence premises include ${sample}.`;
+  }
+
+  if (tensionCount > 0) {
+    const t = tensions[0];
+    p += ` The tension between ${t.poleA} and ${t.poleB} remains unresolved and continues to organize decisions this constitution cannot yet settle.`;
+  }
+
+  p += ' Each principle here is provisional, traceable to evidence, and open to revision. The constitution does not claim final certainty — it claims earned orientation.';
+  return p;
+}
 
 export async function registerRoutes(httpServer: Server, app: Express): Promise<Server> {
   // ─── Health ────────────────────────────────────────────────────────────────
@@ -108,7 +160,115 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   });
 
   // ─── Axioms ────────────────────────────────────────────────────────────────
-  app.get("/api/axioms", (req: any, res: any) => {
+  // ─── AI Enrichment ────────────────────────────────────────────────────────
+  app.post('/api/axioms/:id/enrich', async (req: any, res: any) => {
+    const id = parseInt(req.params.id);
+    const userId = getUserId(req);
+    const axiom = storage.getAxiom(id, userId);
+    if (!axiom) return res.status(404).json({ error: 'Axiom not found' });
+
+    const apiKey = process.env.OPENAI_API_KEY;
+    if (!apiKey) return res.status(503).json({ error: 'AI enrichment requires OPENAI_API_KEY', available: false });
+
+    try {
+      const openai = new OpenAI({ apiKey });
+      const inputDescs: string[] = JSON.parse(axiom.inputDescriptions || '[]');
+      const evidenceText = inputDescs.length > 0
+        ? inputDescs.join('\n')
+        : (axiom.signal || axiom.truthClaim || axiom.title);
+
+      const userMsg = `Signal Inputs (raw evidence):\n${evidenceText}\n\nCurrent signal (may be shallow): ${axiom.signal || '(none)'}\nCurrent truth claim (may need deepening): ${axiom.truthClaim}\nConfidence level: ${axiom.confidence} (${axiom.confidenceScore}/100)`;
+
+      const completion = await openai.chat.completions.create({
+        model: 'gpt-4o-mini',
+        messages: [
+          { role: 'system', content: ENRICHMENT_SYSTEM_PROMPT },
+          { role: 'user', content: userMsg },
+        ],
+        response_format: { type: 'json_object' },
+        temperature: 0.65,
+        max_tokens: 800,
+      });
+
+      const enriched = JSON.parse(completion.choices[0].message.content || '{}') as Partial<InsertAxiom>;
+      const allowed = ['signal', 'convergence', 'interpretation', 'truthClaim', 'workingPrinciple'] as const;
+      const update: Partial<InsertAxiom> = {};
+      for (const key of allowed) {
+        if (enriched[key] && typeof enriched[key] === 'string') {
+          (update as any)[key] = (enriched[key] as string).trim();
+        }
+      }
+
+      const updated = storage.updateAxiom(id, update, userId);
+      res.json({ axiom: updated, enriched: true });
+    } catch (err: any) {
+      console.error('[axiom/enrich]', err);
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // ─── Constitution preamble ────────────────────────────────────────────────
+  app.get('/api/constitution/meta', (req: any, res: any) => {
+    const userId = getUserId(req);
+    const meta = storage.getConstitutionMeta(userId);
+    res.json(meta || { preamble: '', updatedAt: null });
+  });
+
+  app.post('/api/constitution/preamble', async (req: any, res: any) => {
+    const userId = getUserId(req);
+    const axiomsList = storage.getAxioms(userId);
+    const tensionsList = storage.getTensions(userId);
+    const revisionsList = storage.getRevisions(userId);
+
+    const apiKey = process.env.OPENAI_API_KEY;
+
+    if (!apiKey) {
+      const preamble = generateTemplatePreamble(axiomsList, tensionsList, revisionsList);
+      const meta = storage.upsertConstitutionMeta(userId, preamble);
+      return res.json({ preamble: meta.preamble, aiPowered: false });
+    }
+
+    try {
+      const openai = new OpenAI({ apiKey });
+      const claimsText = axiomsList
+        .filter(a => ['high', 'medium-high', 'medium'].includes(a.confidence))
+        .slice(0, 8)
+        .map(a => `- [${a.confidence}] ${a.truthClaim}`)
+        .join('\n');
+      const tensionsText = tensionsList
+        .slice(0, 4)
+        .map(t => `- ${t.poleA} \u2194 ${t.poleB}: ${t.description}`)
+        .join('\n');
+      const revisionsText = revisionsList
+        .filter(r => r.significance === 'major')
+        .slice(0, 3)
+        .map(r => `- Revised: "${r.previousBelief}" \u2192 "${r.newBelief}"`)
+        .join('\n');
+
+      const userMsg = `Truth claims:\n${claimsText || '(none yet)'}\n\nActive tensions:\n${tensionsText || '(none yet)'}\n\nMajor revisions:\n${revisionsText || '(none yet)'}\n\nTotal: ${axiomsList.length} claims, ${tensionsList.length} tensions, ${revisionsList.length} revisions.`;
+
+      const completion = await openai.chat.completions.create({
+        model: 'gpt-4o-mini',
+        messages: [
+          { role: 'system', content: PREAMBLE_SYSTEM_PROMPT },
+          { role: 'user', content: userMsg },
+        ],
+        temperature: 0.7,
+        max_tokens: 300,
+      });
+
+      const preamble = completion.choices[0].message.content?.trim() || generateTemplatePreamble(axiomsList, tensionsList, revisionsList);
+      const meta = storage.upsertConstitutionMeta(userId, preamble);
+      res.json({ preamble: meta.preamble, aiPowered: true });
+    } catch (err: any) {
+      console.error('[constitution/preamble]', err);
+      const preamble = generateTemplatePreamble(axiomsList, tensionsList, revisionsList);
+      const meta = storage.upsertConstitutionMeta(userId, preamble);
+      res.json({ preamble: meta.preamble, aiPowered: false });
+    }
+  });
+
+    app.get("/api/axioms", (req: any, res: any) => {
     const userId = getUserId(req);
     res.json(storage.getAxioms(userId));
   });

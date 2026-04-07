@@ -41,6 +41,18 @@ export default function AxiomDetail({ params }: { params: { id: string } }) {
     queryKey: ["/api/axioms", id],
   });
 
+  const enrichMutation = useMutation({
+    mutationFn: () => apiRequest("POST", `/api/axioms/${id}/enrich`, {}),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/axioms", id] });
+      queryClient.invalidateQueries({ queryKey: ["/api/axioms"] });
+      toast({ description: "Axiom deepened." });
+    },
+    onError: () => {
+      toast({ variant: "destructive", description: "Enrichment unavailable. Add OPENAI_API_KEY to enable." });
+    },
+  });
+
   const deleteMutation = useMutation({
     mutationFn: () => apiRequest("DELETE", `/api/axioms/${id}`),
     onSuccess: () => {
@@ -120,6 +132,24 @@ export default function AxiomDetail({ params }: { params: { id: string } }) {
         </div>
       </div>
 
+      {/* Deepen prompt — show when interpretation layers are shallow */}
+      {(!axiom.workingPrinciple || axiom.workingPrinciple.trim().length < 10 || !axiom.interpretation || axiom.interpretation === axiom.signal) && (
+        <div className="mb-4 px-4 py-3 border border-border/30 rounded-sm flex items-center justify-between gap-4">
+          <p className="text-xs text-muted-foreground/40 leading-relaxed">
+            {(axiom as any).source === 'lumen_push'
+              ? "Auto-promoted from epistemic queue — interpretation layers not yet derived."
+              : "This axiom has not been fully interpreted yet."}
+          </p>
+          <button
+            onClick={() => enrichMutation.mutate()}
+            disabled={enrichMutation.isPending}
+            className="flex-shrink-0 text-[10px] font-mono uppercase tracking-wider text-primary hover:text-primary/80 transition-colors disabled:opacity-40"
+          >
+            {enrichMutation.isPending ? "Deepening…" : "Deepen →"}
+          </button>
+        </div>
+      )}
+
       {/* Truth Claim — prominent */}
       <div className="bg-card border border-card-border rounded-sm px-6 py-5 mb-6">
         <div className="font-mono text-[10px] tracking-widest-constitutional uppercase text-muted-foreground/50 mb-3">
@@ -143,11 +173,37 @@ export default function AxiomDetail({ params }: { params: { id: string } }) {
         {/* Inputs */}
         <SynthesisSection label="Signal Inputs">
           <div className="space-y-2">
-            {inputDescriptions.map((desc, i) => (
-              <p key={i} className="text-sm text-foreground/70 leading-relaxed pl-3 border-l-2 border-border">
-                {desc}
-              </p>
-            ))}
+            {inputDescriptions.map((desc, i) => {
+              const isLiminal = desc.startsWith("Liminal:");
+              const isParallax = desc.startsWith("Parallax:");
+              const isPraxis = desc.startsWith("Praxis:");
+              const borderColor = isLiminal
+                ? "border-purple-500/50"
+                : isParallax
+                ? "border-blue-500/50"
+                : isPraxis
+                ? "border-emerald-600/50"
+                : "border-border";
+              const labelColor = isLiminal
+                ? "text-purple-500/70"
+                : isParallax
+                ? "text-blue-500/70"
+                : isPraxis
+                ? "text-emerald-600/70"
+                : "text-muted-foreground/40";
+              const prefix = isLiminal ? "Liminal" : isParallax ? "Parallax" : isPraxis ? "Praxis" : null;
+              const body = prefix ? desc.slice(prefix.length + 1).trim() : desc;
+              return (
+                <div key={i} className={`pl-3 border-l-2 ${borderColor}`}>
+                  {prefix && (
+                    <span className={`font-mono text-[9px] uppercase tracking-wider ${labelColor} block mb-0.5`}>
+                      {prefix}
+                    </span>
+                  )}
+                  <p className="text-sm text-foreground/70 leading-relaxed">{body}</p>
+                </div>
+              );
+            })}
             {inputDescriptions.length === 0 && (
               <p className="text-sm text-muted-foreground/50">No input descriptions recorded.</p>
             )}

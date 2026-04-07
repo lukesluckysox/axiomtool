@@ -1,5 +1,5 @@
 import { db } from "./db";
-import { axioms, tensions, revisions, type Axiom, type Tension, type Revision, type InsertAxiom, type InsertTension, type InsertRevision } from "@shared/schema";
+import { axioms, tensions, revisions, constitutions, type Axiom, type Tension, type Revision, type Constitution, type InsertAxiom, type InsertTension, type InsertRevision } from "@shared/schema";
 import { eq, desc, sql, and } from "drizzle-orm";
 
 export interface IStorage {
@@ -20,6 +20,9 @@ export interface IStorage {
   getRevision(id: number, userId: string): Revision | undefined;
   createRevision(data: InsertRevision, userId: string): Revision;
   deleteRevision(id: number, userId: string): boolean;
+  // Constitutions
+  getConstitutionMeta(userId: string): Constitution | undefined;
+  upsertConstitutionMeta(userId: string, preamble: string): Constitution;
 }
 
 function now(): string {
@@ -107,6 +110,23 @@ export class Storage implements IStorage {
   deleteRevision(id: number, userId: string): boolean {
     const result = db.delete(revisions).where(and(eq(revisions.id, id), eq(revisions.userId, userId))).run();
     return result.changes > 0;
+  }
+
+  // ─── Constitutions ─────────────────────────────────────────────────────
+  getConstitutionMeta(userId: string): Constitution | undefined {
+    return db.select().from(constitutions).where(eq(constitutions.userId, userId)).get();
+  }
+
+  upsertConstitutionMeta(userId: string, preamble: string): Constitution {
+    const ts = now();
+    const existing = this.getConstitutionMeta(userId);
+    if (existing) {
+      return db.update(constitutions)
+        .set({ preamble, updatedAt: ts })
+        .where(eq(constitutions.userId, userId))
+        .returning().get();
+    }
+    return db.insert(constitutions).values({ userId, preamble, updatedAt: ts }).returning().get();
   }
 }
 

@@ -63,6 +63,27 @@ try { sqlite.exec(`ALTER TABLE axioms ADD COLUMN user_id TEXT NOT NULL DEFAULT '
 try { sqlite.exec(`ALTER TABLE tensions ADD COLUMN user_id TEXT NOT NULL DEFAULT '1'`); } catch {}
 try { sqlite.exec(`ALTER TABLE revisions ADD COLUMN user_id TEXT NOT NULL DEFAULT '1'`); } catch {}
 
+// Add source column to axioms (no-op if exists)
+try { sqlite.exec("ALTER TABLE axioms ADD COLUMN source TEXT NOT NULL DEFAULT 'manual'"); } catch {}
+
+// Mark original seeded axioms (first 5 per user)
+try {
+  sqlite.exec(`
+    UPDATE axioms SET source = 'seeded'
+    WHERE user_id = '1' AND number <= 5 AND source = 'manual'
+  `);
+} catch {}
+
+// Create constitutions table
+sqlite.exec(`
+  CREATE TABLE IF NOT EXISTS constitutions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id TEXT NOT NULL UNIQUE,
+    preamble TEXT NOT NULL DEFAULT '',
+    updated_at TEXT NOT NULL DEFAULT ''
+  );
+`);
+
 sqlite.exec(`
   CREATE TABLE IF NOT EXISTS axiom_users (
     id TEXT PRIMARY KEY,

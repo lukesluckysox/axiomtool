@@ -212,7 +212,7 @@ export default function NewSynthesis() {
             Where does this synthesis come from?
           </div>
 
-          <Field label="Liminal Inputs">
+          <Field label="Liminal Dilemmas">
             <div className="mb-3">
               <NumInput value={form.liminalCount} onChange={set("liminalCount") as any} label="inputs" testId="input-liminal-count" />
             </div>
@@ -220,7 +220,7 @@ export default function NewSynthesis() {
               <Textarea
                 value={form.liminalDesc}
                 onChange={set("liminalDesc") as any}
-                placeholder="Describe what Liminal surfaced — which beliefs were questioned, what contradictions emerged…"
+                placeholder="Describe which beliefs were destabilized, which contradictions surfaced, or which dilemmas remained unresolved…"
                 rows={3}
                 testId="input-liminal-desc"
               />
@@ -235,14 +235,14 @@ export default function NewSynthesis() {
               <Textarea
                 value={form.parallaxDesc}
                 onChange={set("parallaxDesc") as any}
-                placeholder="Describe what Parallax revealed — which patterns, archetypes, or recurring structures…"
+                placeholder="Describe which archetypes, concealment patterns, or identity structures appeared…"
                 rows={3}
                 testId="input-parallax-desc"
               />
             )}
           </Field>
 
-          <Field label="Praxis Inputs">
+          <Field label="Praxis Experiments">
             <div className="mb-3">
               <NumInput value={form.praxisCount} onChange={set("praxisCount") as any} label="inputs" testId="input-praxis-count" />
             </div>
@@ -250,7 +250,7 @@ export default function NewSynthesis() {
               <Textarea
                 value={form.praxisDesc}
                 onChange={set("praxisDesc") as any}
-                placeholder="Describe what Praxis produced — which experiments ran, what outcomes were observed…"
+                placeholder="Describe which experiments ran, what was observed, and what was confirmed or refuted…"
                 rows={3}
                 testId="input-praxis-desc"
               />

@@ -12,6 +12,7 @@ export const axioms = sqliteTable("axioms", {
   liminalCount: integer("liminal_count").notNull().default(0),
   parallaxCount: integer("parallax_count").notNull().default(0),
   praxisCount: integer("praxis_count").notNull().default(0),
+  source: text("source").notNull().default("manual"), // "manual" | "lumen_push" | "seeded"
   inputDescriptions: text("input_descriptions").notNull().default("[]"), // JSON: string[]
   // Synthesis chain
   signal: text("signal").notNull().default(""),
@@ -31,11 +32,7 @@ export const axioms = sqliteTable("axioms", {
 });
 
 export const insertAxiomSchema = createInsertSchema(axioms).omit({
-  id: true,
-  userId: true,
-  number: true,
-  createdAt: true,
-  updatedAt: true,
+  id: true, userId: true, number: true, createdAt: true, updatedAt: true, source: true,
 });
 
 export type InsertAxiom = z.infer<typeof insertAxiomSchema>;
@@ -83,3 +80,13 @@ export const insertRevisionSchema = createInsertSchema(revisions).omit({
 
 export type InsertRevision = z.infer<typeof insertRevisionSchema>;
 export type Revision = typeof revisions.$inferSelect;
+
+// ─── Constitutions (Preamble + meta per user) ────────────────────────────────
+export const constitutions = sqliteTable("constitutions", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  userId: text("user_id").notNull().unique(),
+  preamble: text("preamble").notNull().default(""),
+  updatedAt: text("updated_at").notNull(),
+});
+
+export type Constitution = typeof constitutions.$inferSelect;
