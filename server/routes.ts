@@ -42,9 +42,68 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     });
   });
 
+  // ─── Internal: push from Lumen epistemic queue ───────────────────────────────
+  app.post('/api/internal/from-lumen', (req: any, res: any) => {
+    const token = req.headers['x-lumen-internal-token'];
+    const expected = process.env.JWT_SECRET || '4gLtMuM38OkYGIpM1SCD+QQLgBPqgrKFB3aZeObkaqobhpeFOCV3NkAMW2dyOS17';
+    if (!token || token !== expected) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const {
+      title,
+      truthClaim,
+      signal = '',
+      convergence = '',
+      interpretation = '',
+      workingPrinciple = '',
+      confidence = 'medium',
+      confidenceScore = 50,
+      counterevidence = '',
+      revisionNote = '',
+      revisionHistory = '[]',
+      liminalCount = 0,
+      parallaxCount = 0,
+      praxisCount = 0,
+      inputDescriptions = '[]',
+      userId = '1',
+    } = req.body as Record<string, any>;
+
+    if (!truthClaim) {
+      return res.status(400).json({ error: 'truthClaim is required' });
+    }
+
+    try {
+      const axiom = storage.createAxiom(
+        {
+          title: title || truthClaim.slice(0, 200),
+          truthClaim,
+          signal,
+          convergence,
+          interpretation,
+          workingPrinciple,
+          confidence,
+          confidenceScore: Number(confidenceScore),
+          counterevidence,
+          revisionNote,
+          revisionHistory,
+          liminalCount: Number(liminalCount),
+          parallaxCount: Number(parallaxCount),
+          praxisCount: Number(praxisCount),
+          inputDescriptions,
+        },
+        String(userId)
+      );
+      return res.status(201).json(axiom);
+    } catch (err: any) {
+      console.error('[axiom/internal/from-lumen]', err);
+      return res.status(500).json({ error: err.message });
+    }
+  });
+
   // Auth guard for all /api/* except /api/auth/* and /api/health
   app.use('/api', (req: any, res: any, next: any) => {
-    if (req.path.startsWith('/auth/') || req.path === '/health') return next();
+    if (req.path.startsWith('/auth/') || req.path === '/health' || req.path.startsWith('/internal/')) return next();
     requireAuth(req, res, next);
   });
 
