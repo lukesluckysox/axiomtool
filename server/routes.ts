@@ -4,7 +4,64 @@ import { storage } from "./storage";
 import { insertAxiomSchema, insertTensionSchema, insertRevisionSchema } from "@shared/schema";
 import type { Axiom, Tension, Revision, InsertAxiom } from "@shared/schema";
 import { requireAuth, getUserId, verifyLumenToken } from "./auth";
+import Anthropic from '@anthropic-ai/sdk';
 import OpenAI from 'openai';
+
+// ─── AI Provider abstraction ─────────────────────────────────────────────────
+// Prefers ANTHROPIC_API_KEY; falls back to OPENAI_API_KEY.
+// Returns null if neither is available.
+interface AIResult { text: string }
+
+async function aiComplete(opts: {
+  system: string;
+  user: string;
+  jsonMode?: boolean;
+  temperature?: number;
+  maxTokens?: number;
+}): Promise<AIResult | null> {
+  const anthropicKey = process.env.ANTHROPIC_API_KEY;
+  const openaiKey = process.env.OPENAI_API_KEY;
+
+  // Prefer Anthropic
+  if (anthropicKey) {
+    try {
+      const client = new Anthropic({ apiKey: anthropicKey });
+      const msg = await client.messages.create({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: opts.maxTokens || 1024,
+        temperature: opts.temperature ?? 0.65,
+        system: opts.system,
+        messages: [{ role: 'user', content: opts.jsonMode
+          ? opts.user + '\n\nRespond with ONLY valid JSON — no markdown fences, no explanation.'
+          : opts.user }],
+      });
+      const block = msg.content[0];
+      return { text: block.type === 'text' ? block.text : '' };
+    } catch (err: any) {
+      console.error('[ai/anthropic]', err.message);
+      // Fall through to OpenAI if available
+      if (!openaiKey) throw err;
+    }
+  }
+
+  // Fallback to OpenAI
+  if (openaiKey) {
+    const openai = new OpenAI({ apiKey: openaiKey });
+    const completion = await openai.chat.completions.create({
+      model: 'gpt-4o-mini',
+      messages: [
+        { role: 'system', content: opts.system },
+        { role: 'user', content: opts.user },
+      ],
+      ...(opts.jsonMode ? { response_format: { type: 'json_object' as const } } : {}),
+      temperature: opts.temperature ?? 0.65,
+      max_tokens: opts.maxTokens || 1024,
+    });
+    return { text: completion.choices[0].message.content || '' };
+  }
+
+  return null; // no key configured
+}
 
 const ENRICHMENT_SYSTEM_PROMPT = `You are an epistemic synthesis engine inside a philosophical operating system called Axiom. You transform observed evidence about a person into truth claims that are specific, earned, and interpretively meaningful.
 
@@ -169,11 +226,11 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     const axiom = storage.getAxiom(id, userId);
     if (!axiom) return res.status(404).json({ error: 'Axiom not found' });
 
-    const apiKey = process.env.OPENAI_API_KEY;
-    if (!apiKey) return res.status(503).json({ error: 'AI enrichment requires OPENAI_API_KEY', available: false });
+    if (!process.env.ANTHROPIC_API_KEY && !process.env.OPENAI_API_KEY) {
+      return res.status(503).json({ error: 'AI enrichment requires ANTHROPIC_API_KEY or OPENAI_API_KEY', available: false });
+    }
 
     try {
-      const openai = new OpenAI({ apiKey });
       const inputDescs: string[] = JSON.parse(axiom.inputDescriptions || '[]');
       const evidenceText = inputDescs.length > 0
         ? inputDescs.join('\n')
@@ -181,18 +238,17 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
 
       const userMsg = `Signal Inputs (raw evidence):\n${evidenceText}\n\nCurrent signal (may be shallow): ${axiom.signal || '(none)'}\nCurrent truth claim (may need deepening): ${axiom.truthClaim}\nConfidence level: ${axiom.confidence} (${axiom.confidenceScore}/100)`;
 
-      const completion = await openai.chat.completions.create({
-        model: 'gpt-4o-mini',
-        messages: [
-          { role: 'system', content: ENRICHMENT_SYSTEM_PROMPT },
-          { role: 'user', content: userMsg },
-        ],
-        response_format: { type: 'json_object' },
+      const result = await aiComplete({
+        system: ENRICHMENT_SYSTEM_PROMPT,
+        user: userMsg,
+        jsonMode: true,
         temperature: 0.65,
-        max_tokens: 800,
+        maxTokens: 800,
       });
 
-      const enriched = JSON.parse(completion.choices[0].message.content || '{}') as Partial<InsertAxiom>;
+      if (!result) return res.status(503).json({ error: 'AI call failed' });
+
+      const enriched = JSON.parse(result.text) as Partial<InsertAxiom>;
       const allowed = ['signal', 'convergence', 'interpretation', 'truthClaim', 'workingPrinciple'] as const;
       const update: Partial<InsertAxiom> = {};
       for (const key of allowed) {
@@ -225,16 +281,13 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     const tensionsList = storage.getTensions(userId);
     const revisionsList = storage.getRevisions(userId);
 
-    const apiKey = process.env.OPENAI_API_KEY;
-
-    if (!apiKey) {
+    if (!process.env.ANTHROPIC_API_KEY && !process.env.OPENAI_API_KEY) {
       const preamble = generateTemplatePreamble(axiomsList, tensionsList, revisionsList);
       const meta = storage.upsertConstitutionMeta(userId, preamble);
       return res.json({ preamble: meta.preamble, aiPowered: false });
     }
 
     try {
-      const openai = new OpenAI({ apiKey });
       const claimsText = axiomsList
         .filter(a => ['high', 'medium-high', 'medium'].includes(a.confidence))
         .slice(0, 8)
@@ -252,19 +305,16 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
 
       const userMsg = `Truth claims:\n${claimsText || '(none yet)'}\n\nActive tensions:\n${tensionsText || '(none yet)'}\n\nMajor revisions:\n${revisionsText || '(none yet)'}\n\nTotal: ${axiomsList.length} claims, ${tensionsList.length} tensions, ${revisionsList.length} revisions.`;
 
-      const completion = await openai.chat.completions.create({
-        model: 'gpt-4o-mini',
-        messages: [
-          { role: 'system', content: PREAMBLE_SYSTEM_PROMPT },
-          { role: 'user', content: userMsg },
-        ],
+      const result = await aiComplete({
+        system: PREAMBLE_SYSTEM_PROMPT,
+        user: userMsg,
         temperature: 0.7,
-        max_tokens: 300,
+        maxTokens: 300,
       });
 
-      const preamble = completion.choices[0].message.content?.trim() || generateTemplatePreamble(axiomsList, tensionsList, revisionsList);
+      const preamble = result?.text?.trim() || generateTemplatePreamble(axiomsList, tensionsList, revisionsList);
       const meta = storage.upsertConstitutionMeta(userId, preamble);
-      res.json({ preamble: meta.preamble, aiPowered: true });
+      res.json({ preamble: meta.preamble, aiPowered: !!result });
     } catch (err: any) {
       console.error('[constitution/preamble]', err);
       const preamble = generateTemplatePreamble(axiomsList, tensionsList, revisionsList);
