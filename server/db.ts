@@ -57,3 +57,18 @@ sqlite.exec(`
     created_at TEXT NOT NULL
   );
 `);
+
+// ─── Auth migrations ──────────────────────────────────────────────────────────
+try { sqlite.exec(`ALTER TABLE axioms ADD COLUMN user_id TEXT NOT NULL DEFAULT '1'`); } catch {}
+try { sqlite.exec(`ALTER TABLE tensions ADD COLUMN user_id TEXT NOT NULL DEFAULT '1'`); } catch {}
+try { sqlite.exec(`ALTER TABLE revisions ADD COLUMN user_id TEXT NOT NULL DEFAULT '1'`); } catch {}
+
+sqlite.exec(`
+  CREATE TABLE IF NOT EXISTS axiom_users (
+    id TEXT PRIMARY KEY,
+    username TEXT NOT NULL UNIQUE,
+    email TEXT,
+    lumen_user_id TEXT NOT NULL UNIQUE,
+    created_at TEXT NOT NULL
+  )
+`);

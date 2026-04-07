@@ -5,6 +5,7 @@ import { z } from "zod";
 // ─── Axioms (Truth Claims) ──────────────────────────────────────────────────
 export const axioms = sqliteTable("axioms", {
   id: integer("id").primaryKey({ autoIncrement: true }),
+  userId: text("user_id").notNull().default("1"),
   number: integer("number").notNull(),
   title: text("title").notNull(),
   // Source input counts
@@ -31,6 +32,7 @@ export const axioms = sqliteTable("axioms", {
 
 export const insertAxiomSchema = createInsertSchema(axioms).omit({
   id: true,
+  userId: true,
   number: true,
   createdAt: true,
   updatedAt: true,
@@ -42,6 +44,7 @@ export type Axiom = typeof axioms.$inferSelect;
 // ─── Tensions (Core Tensions / Polarities) ──────────────────────────────────
 export const tensions = sqliteTable("tensions", {
   id: integer("id").primaryKey({ autoIncrement: true }),
+  userId: text("user_id").notNull().default("1"),
   poleA: text("pole_a").notNull(),
   poleB: text("pole_b").notNull(),
   description: text("description").notNull(),
@@ -52,6 +55,7 @@ export const tensions = sqliteTable("tensions", {
 
 export const insertTensionSchema = createInsertSchema(tensions).omit({
   id: true,
+  userId: true,
   createdAt: true,
 });
 
@@ -61,6 +65,7 @@ export type Tension = typeof tensions.$inferSelect;
 // ─── Revisions (Worldview Revisions) ────────────────────────────────────────
 export const revisions = sqliteTable("revisions", {
   id: integer("id").primaryKey({ autoIncrement: true }),
+  userId: text("user_id").notNull().default("1"),
   date: text("date").notNull(),
   previousBelief: text("previous_belief").notNull(),
   newBelief: text("new_belief").notNull(),
@@ -72,6 +77,7 @@ export const revisions = sqliteTable("revisions", {
 
 export const insertRevisionSchema = createInsertSchema(revisions).omit({
   id: true,
+  userId: true,
   createdAt: true,
 });
 
