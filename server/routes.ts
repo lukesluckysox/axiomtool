@@ -4,6 +4,11 @@ import { storage } from "./storage";
 import { insertAxiomSchema, insertTensionSchema, insertRevisionSchema } from "@shared/schema";
 
 export async function registerRoutes(httpServer: Server, app: Express): Promise<Server> {
+  // ─── Health ────────────────────────────────────────────────────────────────
+  app.get("/api/health", (_req, res) => {
+    res.json({ status: "ok", timestamp: new Date().toISOString() });
+  });
+
   // ─── Axioms ────────────────────────────────────────────────────────────────
   app.get("/api/axioms", (_req, res) => {
     res.json(storage.getAxioms());
