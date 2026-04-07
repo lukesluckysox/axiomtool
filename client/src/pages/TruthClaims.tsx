@@ -74,7 +74,8 @@ function AxiomRow({ axiom }: { axiom: Axiom }) {
 export default function TruthClaims() {
   const [filter, setFilter] = useState<string>("all");
   const { data: axioms, isLoading } = useQuery<Axiom[]>({
-    queryKey: ["/api/axioms"],
+    queryKey: ["/api/axioms", "proving_ground"],
+    queryFn: () => fetch("/api/axioms?stage=proving_ground").then(r => r.json()),
   });
 
   const sorted = (axioms ?? []).slice().sort((a, b) => {
@@ -98,10 +99,10 @@ export default function TruthClaims() {
         <div className="flex items-end justify-between">
           <div>
             <h1 className="font-mono text-xs tracking-widest-constitutional uppercase text-muted-foreground mb-2">
-              Truth Claims
+              Proving Ground
             </h1>
             <div className="font-serif text-3xl text-foreground">
-              {isLoading ? "—" : (axioms?.length ?? 0)} axioms
+              {isLoading ? "—" : (axioms?.length ?? 0)} candidates
             </div>
             <div className="mt-1.5 flex items-center gap-4 text-xs text-muted-foreground/60 font-mono">
               <span>{highCount + mhCount} high confidence</span>
@@ -149,14 +150,19 @@ export default function TruthClaims() {
       ) : filtered.length === 0 ? (
         <div className="px-8 py-16 text-center">
           <div className="font-serif text-xl text-muted-foreground/40 mb-3">
-            {filter === "all" ? "No axioms yet." : `No ${filter} confidence axioms.`}
+            {filter === "all" ? "No candidates yet." : `No ${filter} confidence candidates.`}
           </div>
           {filter === "all" && (
-            <Link href="/new">
-              <button className="text-xs font-mono tracking-wider text-primary hover:text-primary/80 transition-colors">
-                Begin synthesis →
-              </button>
-            </Link>
+            <>
+              <p className="text-sm text-muted-foreground/40 leading-relaxed mb-4 max-w-sm mx-auto">
+                Raw signal from the epistemic pipeline arrives here. Deepen or promote candidates to move them into the Constitution.
+              </p>
+              <Link href="/new">
+                <button className="text-xs font-mono tracking-wider text-primary hover:text-primary/80 transition-colors">
+                  Begin synthesis →
+                </button>
+              </Link>
+            </>
           )}
         </div>
       ) : (

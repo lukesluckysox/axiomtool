@@ -66,6 +66,14 @@ try { sqlite.exec(`ALTER TABLE revisions ADD COLUMN user_id TEXT NOT NULL DEFAUL
 // Add source column to axioms (no-op if exists)
 try { sqlite.exec("ALTER TABLE axioms ADD COLUMN source TEXT NOT NULL DEFAULT 'manual'"); } catch {}
 
+// Add stage column: proving_ground (default) or constitutional
+try { sqlite.exec("ALTER TABLE axioms ADD COLUMN stage TEXT NOT NULL DEFAULT 'proving_ground'"); } catch {}
+
+// Mark seeded axioms as constitutional (they were manually crafted originals)
+try {
+  sqlite.exec(`UPDATE axioms SET stage = 'constitutional' WHERE source = 'seeded'`);
+} catch {}
+
 // Mark original seeded axioms (first 5 per user)
 try {
   sqlite.exec(`

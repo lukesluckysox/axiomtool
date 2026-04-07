@@ -9,6 +9,7 @@ export interface IStorage {
   createAxiom(data: InsertAxiom, userId: string): Axiom;
   updateAxiom(id: number, data: Partial<InsertAxiom>, userId: string): Axiom | undefined;
   deleteAxiom(id: number, userId: string): boolean;
+  setAxiomStage(id: number, stage: string, userId: string): void;
   // Tensions
   getTensions(userId: string): Tension[];
   getTension(id: number, userId: string): Tension | undefined;
@@ -70,6 +71,10 @@ export class Storage implements IStorage {
   deleteAxiom(id: number, userId: string): boolean {
     const result = db.delete(axioms).where(and(eq(axioms.id, id), eq(axioms.userId, userId))).run();
     return result.changes > 0;
+  }
+
+  setAxiomStage(id: number, stage: string, userId: string): void {
+    db.update(axioms).set({ stage, updatedAt: now() } as any).where(and(eq(axioms.id, id), eq(axioms.userId, userId))).run();
   }
 
   // ─── Tensions ────────────────────────────────────────────────────────────

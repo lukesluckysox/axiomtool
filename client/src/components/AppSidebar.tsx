@@ -14,9 +14,9 @@ const AxiomLogo = () => (
 const navItems = [
   {
     href: "/",
-    label: "Truth Claims",
-    shortLabel: "TRUTH CLAIMS",
-    queryKey: "/api/axioms",
+    label: "Proving Ground",
+    shortLabel: "PROVING GROUND",
+    queryKey: "/api/axioms?stage=proving_ground",
   },
   {
     href: "/tensions",
@@ -34,13 +34,14 @@ const navItems = [
     href: "/constitution",
     label: "Constitution",
     shortLabel: "CONSTITUTION",
-    queryKey: null,
+    queryKey: "/api/axioms?stage=constitutional",
   },
 ];
 
 function NavCount({ queryKey }: { queryKey: string | null }) {
   const { data } = useQuery<any[]>({
     queryKey: [queryKey],
+    queryFn: queryKey ? () => fetch(queryKey).then(r => r.json()) : undefined,
     enabled: !!queryKey,
   });
   if (!queryKey || !data) return null;

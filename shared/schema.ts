@@ -13,6 +13,7 @@ export const axioms = sqliteTable("axioms", {
   parallaxCount: integer("parallax_count").notNull().default(0),
   praxisCount: integer("praxis_count").notNull().default(0),
   source: text("source").notNull().default("manual"), // "manual" | "lumen_push" | "seeded"
+  stage: text("stage").notNull().default("proving_ground"), // "proving_ground" | "constitutional"
   inputDescriptions: text("input_descriptions").notNull().default("[]"), // JSON: string[]
   // Synthesis chain
   signal: text("signal").notNull().default(""),
@@ -32,7 +33,7 @@ export const axioms = sqliteTable("axioms", {
 });
 
 export const insertAxiomSchema = createInsertSchema(axioms).omit({
-  id: true, userId: true, number: true, createdAt: true, updatedAt: true, source: true,
+  id: true, userId: true, number: true, createdAt: true, updatedAt: true, source: true, stage: true,
 });
 
 export type InsertAxiom = z.infer<typeof insertAxiomSchema>;

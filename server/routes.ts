@@ -95,6 +95,8 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   });
 
   // ─── Internal: push from Lumen epistemic queue ───────────────────────────────
+  // Note: incoming axioms default to stage='proving_ground' via schema default.
+  // They remain in the Proving Ground until the user Deepens or manually promotes them.
   app.post('/api/internal/from-lumen', (req: any, res: any) => {
     const token = req.headers['x-lumen-internal-token'];
     const expected = process.env.JWT_SECRET || '4gLtMuM38OkYGIpM1SCD+QQLgBPqgrKFB3aZeObkaqobhpeFOCV3NkAMW2dyOS17';
@@ -199,8 +201,11 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         }
       }
 
-      const updated = storage.updateAxiom(id, update, userId);
-      res.json({ axiom: updated, enriched: true });
+      storage.updateAxiom(id, update, userId);
+      // Deepen always promotes to constitutional
+      storage.setAxiomStage(id, 'constitutional', userId);
+      const final = storage.getAxiom(id, userId);
+      res.json({ axiom: final, enriched: true, promoted: true });
     } catch (err: any) {
       console.error('[axiom/enrich]', err);
       res.status(500).json({ error: err.message });
@@ -268,9 +273,15 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     }
   });
 
-    app.get("/api/axioms", (req: any, res: any) => {
+  app.get("/api/axioms", (req: any, res: any) => {
     const userId = getUserId(req);
-    res.json(storage.getAxioms(userId));
+    const stage = req.query.stage as string | undefined;
+    const all = storage.getAxioms(userId);
+    if (stage) {
+      res.json(all.filter((a: any) => a.stage === stage));
+    } else {
+      res.json(all);
+    }
   });
 
   app.get("/api/axioms/:id", (req: any, res: any) => {
@@ -301,6 +312,38 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     const deleted = storage.deleteAxiom(id, getUserId(req));
     if (!deleted) return res.status(404).json({ error: "Axiom not found" });
     res.status(204).send();
+  });
+
+  app.post('/api/axioms/:id/promote', (req: any, res: any) => {
+    const id = parseInt(req.params.id);
+    const userId = getUserId(req);
+    const axiom = storage.getAxiom(id, userId);
+    if (!axiom) return res.status(404).json({ error: 'Axiom not found' });
+
+    const { workingPrinciple } = req.body as { workingPrinciple?: string };
+    if (!workingPrinciple || workingPrinciple.trim().length < 5) {
+      return res.status(400).json({ error: 'A working principle is required for manual promotion.' });
+    }
+
+    // Build constitutional-format interpretation if missing
+    const interpretation = axiom.interpretation && axiom.interpretation.length > 20
+      ? axiom.interpretation
+      : `Manually endorsed as a governing principle. The claim "${axiom.truthClaim.slice(0, 100)}" is treated as self-evident based on direct recognition rather than algorithmic synthesis.`;
+
+    const convergence = axiom.convergence && axiom.convergence.length > 20
+      ? axiom.convergence
+      : `Promoted by direct endorsement — the user recognized this as a standing truth without requiring further analysis.`;
+
+    const update: Partial<InsertAxiom> = {
+      workingPrinciple: workingPrinciple.trim(),
+      interpretation,
+      convergence,
+    };
+
+    storage.updateAxiom(id, update, userId);
+    storage.setAxiomStage(id, 'constitutional', userId);
+    const final = storage.getAxiom(id, userId);
+    res.json({ axiom: final, promoted: true, method: 'manual' });
   });
 
   // ─── Tensions ──────────────────────────────────────────────────────────────

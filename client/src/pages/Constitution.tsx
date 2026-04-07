@@ -138,7 +138,10 @@ function PreambleBlock() {
   const { data: meta } = useQuery<{ preamble: string; updatedAt: string | null }>({
     queryKey: ["/api/constitution/meta"],
   });
-  const { data: axioms = [] } = useQuery<Axiom[]>({ queryKey: ["/api/axioms"] });
+  const { data: axioms = [] } = useQuery<Axiom[]>({
+    queryKey: ["/api/axioms", "constitutional"],
+    queryFn: () => fetch("/api/axioms?stage=constitutional").then(r => r.json()),
+  });
 
   const generateMutation = useMutation({
     mutationFn: () => apiRequest("POST", "/api/constitution/preamble", {}),
@@ -196,7 +199,10 @@ function PreambleBlock() {
 }
 
 export default function Constitution() {
-  const { data: axioms = [], isLoading: loadingAxioms } = useQuery<Axiom[]>({ queryKey: ["/api/axioms"] });
+  const { data: axioms = [], isLoading: loadingAxioms } = useQuery<Axiom[]>({
+    queryKey: ["/api/axioms", "constitutional"],
+    queryFn: () => fetch("/api/axioms?stage=constitutional").then(r => r.json()),
+  });
   const { data: tensions = [], isLoading: loadingTensions } = useQuery<Tension[]>({ queryKey: ["/api/tensions"] });
   const { data: revisions = [], isLoading: loadingRevisions } = useQuery<Revision[]>({ queryKey: ["/api/revisions"] });
 
@@ -233,7 +239,7 @@ export default function Constitution() {
           The Current Operating Structure
         </div>
         <p className="text-xs text-muted-foreground/50 leading-relaxed mb-4">
-          {axioms.length} truth claims · {tensions.length} tensions · {revisions.length} revisions. Provisional and continuously revised.
+          {axioms.length} constitutional axioms · {tensions.length} tensions · {revisions.length} revisions. Earned, not collected.
         </p>
         {lastUpdated && (
           <div className="font-mono text-[10px] text-muted-foreground/30 uppercase tracking-wider">
@@ -247,11 +253,11 @@ export default function Constitution() {
         <div className="text-center py-12">
           <div className="font-serif text-xl text-muted-foreground/40 mb-4">The constitution is empty.</div>
           <p className="text-sm text-muted-foreground/50 leading-relaxed mb-6 max-w-sm mx-auto">
-            Begin with a synthesis.
+            No axioms have been promoted to the Constitution yet. Visit the Proving Ground to deepen or promote candidates.
           </p>
-          <Link href="/new">
+          <Link href="/">
             <button className="text-xs font-mono tracking-wider text-primary hover:text-primary/80 transition-colors">
-              Begin synthesis →
+              Go to Proving Ground →
             </button>
           </Link>
         </div>
