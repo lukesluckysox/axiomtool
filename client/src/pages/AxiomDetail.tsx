@@ -51,8 +51,13 @@ export default function AxiomDetail({ params }: { params: { id: string } }) {
       queryClient.invalidateQueries({ queryKey: ["/api/axioms"] });
       toast({ description: "Deepened and promoted to Constitution." });
     },
-    onError: () => {
-      toast({ variant: "destructive", description: "Enrichment unavailable. Add OPENAI_API_KEY to enable." });
+    onError: (err: any) => {
+      let msg = "Enrichment failed. Check that ANTHROPIC_API_KEY is set on the server.";
+      try {
+        const body = JSON.parse(err.message?.replace(/^\d+:\s*/, '') || '{}');
+        if (body.error) msg = body.error;
+      } catch {}
+      toast({ variant: "destructive", description: msg });
     },
   });
 
