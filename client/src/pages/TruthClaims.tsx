@@ -1,9 +1,10 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Link } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import type { Axiom } from "@shared/schema";
 import ConfidenceBadge from "@/components/ConfidenceBadge";
 import SourceTags, { SourceLegend } from "@/components/SourceTags";
+import { useToast } from "@/hooks/use-toast";
 
 const CONFIDENCE_ORDER = ["high", "medium-high", "medium", "medium-low", "low"];
 
@@ -21,6 +22,109 @@ function investigationPrompt(axiom: Axiom): string {
     return "Experimentally informed — review the evidence";
   }
   return "Awaiting examination";
+}
+
+// Pill badge showing where an axiom came from
+function SourceOriginBadge({ source }: { source?: string }) {
+  if (!source || source === 'manual') {
+    return (
+      <span
+        className="font-mono text-[8px] uppercase tracking-wider px-1.5 py-0.5 rounded-full"
+        style={{ color: 'rgba(156,163,175,0.5)', border: '1px solid rgba(156,163,175,0.15)', background: 'rgba(156,163,175,0.04)' }}
+      >
+        Manual
+      </span>
+    );
+  }
+  if (source === 'lumen_push') {
+    return (
+      <span
+        className="font-mono text-[8px] uppercase tracking-wider px-1.5 py-0.5 rounded-full"
+        style={{ color: '#4d8c9e', border: '1px solid rgba(77,140,158,0.25)', background: 'rgba(77,140,158,0.06)' }}
+      >
+        From Parallax
+      </span>
+    );
+  }
+  if (source === 'seeded') {
+    return (
+      <span
+        className="font-mono text-[8px] uppercase tracking-wider px-1.5 py-0.5 rounded-full"
+        style={{ color: 'rgba(196,148,62,0.5)', border: '1px solid rgba(196,148,62,0.15)', background: 'rgba(196,148,62,0.04)' }}
+      >
+        Seeded
+      </span>
+    );
+  }
+  // fallback for any other recognized values
+  if (source === 'liminal') {
+    return (
+      <span
+        className="font-mono text-[8px] uppercase tracking-wider px-1.5 py-0.5 rounded-full"
+        style={{ color: '#9c8654', border: '1px solid rgba(156,134,84,0.25)', background: 'rgba(156,134,84,0.06)' }}
+      >
+        From Liminal
+      </span>
+    );
+  }
+  if (source === 'praxis') {
+    return (
+      <span
+        className="font-mono text-[8px] uppercase tracking-wider px-1.5 py-0.5 rounded-full"
+        style={{ color: '#c4943e', border: '1px solid rgba(196,148,62,0.25)', background: 'rgba(196,148,62,0.06)' }}
+      >
+        From Praxis
+      </span>
+    );
+  }
+  return null;
+}
+
+// ── Loop Onboarding Card for Axiom ──────────────────────────────────────────
+function LoopDeliveryOnboarding({ axioms }: { axioms: Axiom[] }) {
+  const [visible, setVisible] = useState(() => {
+    if (typeof window === "undefined") return false;
+    return !localStorage.getItem("axiom_loop_onboarding_shown");
+  });
+
+  const hasLumenPush = axioms.some((a) => (a as any).source === "lumen_push");
+
+  if (!visible || !hasLumenPush) return null;
+
+  function dismiss() {
+    localStorage.setItem("axiom_loop_onboarding_shown", "1");
+    setVisible(false);
+  }
+
+  return (
+    <div
+      className="mx-8 my-6 rounded-sm border border-border/50 bg-card/20 overflow-hidden"
+      style={{ borderLeft: "2px solid #FFD166" }}
+      data-testid="card-loop-onboarding-axiom"
+    >
+      <div className="px-5 py-4 space-y-2">
+        <div className="flex items-start justify-between gap-3">
+          <p
+            className="font-mono text-[10px] uppercase tracking-wider font-semibold"
+            style={{ color: "#FFD166" }}
+          >
+            The Loop has delivered its first proposition.
+          </p>
+          <button
+            onClick={dismiss}
+            aria-label="Dismiss"
+            className="font-mono text-[10px] text-muted-foreground/30 hover:text-muted-foreground/60 transition-colors flex-shrink-0 leading-none mt-0.5"
+          >
+            ✕
+          </button>
+        </div>
+        <p className="text-xs text-muted-foreground/60 leading-relaxed">
+          Truth claims arrive here from your Liminal sessions, Parallax patterns, and Praxis experiments.
+          They sit in the Proving Ground until you examine them. Nothing becomes constitutional without your deliberation.
+        </p>
+      </div>
+    </div>
+  );
 }
 
 function AxiomRow({ axiom }: { axiom: Axiom }) {
@@ -71,22 +175,13 @@ function AxiomRow({ axiom }: { axiom: Axiom }) {
           </p>
 
           {/* Source tags + provenance badge */}
-          <div className="flex items-center gap-4 mb-1.5">
+          <div className="flex items-center gap-3 mb-1.5 flex-wrap">
             <SourceTags
               liminal={axiom.liminalCount}
               parallax={axiom.parallaxCount}
               praxis={axiom.praxisCount}
             />
-            {(axiom as any).source === 'seeded' && (
-              <span className="font-mono text-[9px] uppercase tracking-wider text-amber-500/40">
-                original
-              </span>
-            )}
-            {(axiom as any).source === 'lumen_push' && (
-              <span className="font-mono text-[9px] uppercase tracking-wider text-blue-400/40">
-                pipeline
-              </span>
-            )}
+            <SourceOriginBadge source={(axiom as any).source} />
           </div>
 
           {/* Investigation prompt */}
@@ -108,10 +203,25 @@ function AxiomRow({ axiom }: { axiom: Axiom }) {
 
 export default function TruthClaims() {
   const [filter, setFilter] = useState<string>("all");
+  const { toast } = useToast();
   const { data: axioms, isLoading } = useQuery<Axiom[]>({
     queryKey: ["/api/axioms", "proving_ground"],
     queryFn: () => fetch("/api/axioms?stage=proving_ground").then(r => r.json()),
   });
+
+  // Toast: once per session if lumen_push axioms are present
+  useEffect(() => {
+    if (!axioms || axioms.length === 0) return;
+    const sessionKey = 'axiom_loop_toast_shown';
+    if (sessionStorage.getItem(sessionKey)) return;
+    const lumenCount = axioms.filter((a) => (a as any).source === 'lumen_push').length;
+    if (lumenCount > 0) {
+      sessionStorage.setItem(sessionKey, '1');
+      toast({
+        description: `The Loop has delivered ${lumenCount} new proposition${lumenCount !== 1 ? 's' : ''} for examination.`,
+      });
+    }
+  }, [axioms]);
 
   const sorted = (axioms ?? []).slice().sort((a, b) => {
     const ai = CONFIDENCE_ORDER.indexOf(a.confidence);
@@ -181,6 +291,9 @@ export default function TruthClaims() {
       </div>
 
       {/* Axiom List */}
+      {!isLoading && axioms && axioms.length > 0 && (
+        <LoopDeliveryOnboarding axioms={axioms} />
+      )}
       {isLoading ? (
         <div className="px-8 py-12 text-muted-foreground/40 font-mono text-sm">
           Loading…

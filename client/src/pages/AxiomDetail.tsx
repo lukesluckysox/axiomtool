@@ -6,6 +6,7 @@ import type { Axiom } from "@shared/schema";
 import ConfidenceBadge, { ConfidenceBar } from "@/components/ConfidenceBadge";
 import SourceTags from "@/components/SourceTags";
 import { useToast } from "@/hooks/use-toast";
+import ConstitutionalMoment from "@/components/ConstitutionalMoment";
 
 function SynthesisSection({ label, children }: { label: string; children: React.ReactNode }) {
   return (
@@ -39,6 +40,8 @@ export default function AxiomDetail({ params }: { params: { id: string } }) {
   const queryClient = useQueryClient();
   const [showPromoteModal, setShowPromoteModal] = useState(false);
   const [promotePrinciple, setPromotePrinciple] = useState('');
+  const [showCeremony, setShowCeremony] = useState(false);
+  const [ceremonyAxiom, setCeremonyAxiom] = useState<{ truthClaim: string; workingPrinciple: string; confidence: string } | null>(null);
 
   const { data: axiom, isLoading } = useQuery<Axiom>({
     queryKey: ["/api/axioms", id],
@@ -46,10 +49,19 @@ export default function AxiomDetail({ params }: { params: { id: string } }) {
 
   const enrichMutation = useMutation({
     mutationFn: () => apiRequest("POST", `/api/axioms/${id}/enrich`, {}),
-    onSuccess: () => {
+    onSuccess: (data: any) => {
       queryClient.invalidateQueries({ queryKey: ["/api/axioms", id] });
       queryClient.invalidateQueries({ queryKey: ["/api/axioms"] });
-      toast({ description: "Synthesized and enshrined as governing principle." });
+      if (data?.promoted && data?.axiom) {
+        setCeremonyAxiom({
+          truthClaim: data.axiom.truthClaim,
+          workingPrinciple: data.axiom.workingPrinciple,
+          confidence: data.axiom.confidence,
+        });
+        setShowCeremony(true);
+      } else {
+        toast({ description: "Synthesized and enshrined as governing principle." });
+      }
     },
     onError: (err: any) => {
       let msg = "Enrichment failed. Check that ANTHROPIC_API_KEY is set on the server.";
@@ -63,11 +75,20 @@ export default function AxiomDetail({ params }: { params: { id: string } }) {
 
   const promoteMutation = useMutation({
     mutationFn: (workingPrinciple: string) => apiRequest("POST", `/api/axioms/${id}/promote`, { workingPrinciple }),
-    onSuccess: () => {
+    onSuccess: (data: any) => {
       queryClient.invalidateQueries({ queryKey: ["/api/axioms"] });
       queryClient.invalidateQueries({ queryKey: ["/api/axioms", id] });
       setShowPromoteModal(false);
-      toast({ description: "Promoted to Constitution." });
+      if (data?.promoted && data?.axiom) {
+        setCeremonyAxiom({
+          truthClaim: data.axiom.truthClaim,
+          workingPrinciple: data.axiom.workingPrinciple,
+          confidence: data.axiom.confidence,
+        });
+        setShowCeremony(true);
+      } else {
+        toast({ description: "Promoted to Constitution." });
+      }
     },
     onError: () => {
       toast({ variant: "destructive", description: "Promotion failed. Working principle is required." });
@@ -313,6 +334,75 @@ export default function AxiomDetail({ params }: { params: { id: string } }) {
         )}
       </div>
 
+      {/* Provenance: How This Arrived */}
+      <div className="mt-8 pt-6 border-t border-border/30">
+        <div className="font-mono text-[10px] tracking-widest-constitutional uppercase text-muted-foreground/40 mb-4">
+          How This Arrived
+        </div>
+
+        {/* Source type label */}
+        {(axiom as any).source === 'lumen_push' && (
+          <p className="text-xs text-muted-foreground/50 leading-relaxed mb-4 italic">
+            Auto-synthesized from the Lumen pipeline.
+          </p>
+        )}
+        {(axiom as any).source === 'seeded' && (
+          <p className="text-xs text-muted-foreground/50 leading-relaxed mb-4 italic">
+            Pre-loaded example — not from your data.
+          </p>
+        )}
+
+        {/* Source count badges */}
+        {(axiom.liminalCount > 0 || axiom.parallaxCount > 0 || axiom.praxisCount > 0) && (
+          <div className="flex items-center gap-2 mb-4">
+            {axiom.liminalCount > 0 && (
+              <span
+                className="font-mono text-[9px] uppercase tracking-wider px-2 py-0.5 rounded-sm"
+                style={{ color: '#9c8654', border: '1px solid rgba(156,134,84,0.3)', background: 'rgba(156,134,84,0.06)' }}
+              >
+                Liminal: {axiom.liminalCount}
+              </span>
+            )}
+            {axiom.parallaxCount > 0 && (
+              <span
+                className="font-mono text-[9px] uppercase tracking-wider px-2 py-0.5 rounded-sm"
+                style={{ color: '#4d8c9e', border: '1px solid rgba(77,140,158,0.3)', background: 'rgba(77,140,158,0.06)' }}
+              >
+                Parallax: {axiom.parallaxCount}
+              </span>
+            )}
+            {axiom.praxisCount > 0 && (
+              <span
+                className="font-mono text-[9px] uppercase tracking-wider px-2 py-0.5 rounded-sm"
+                style={{ color: '#c4943e', border: '1px solid rgba(196,148,62,0.3)', background: 'rgba(196,148,62,0.06)' }}
+              >
+                Praxis: {axiom.praxisCount}
+              </span>
+            )}
+          </div>
+        )}
+
+        {/* Individual source entries */}
+        {inputDescriptions.length > 0 && (
+          <div className="space-y-2">
+            {inputDescriptions.map((desc, i) => {
+              const isLiminal = desc.startsWith("Liminal:");
+              const isParallax = desc.startsWith("Parallax:");
+              const isPraxis = desc.startsWith("Praxis:");
+              const dotColor = isLiminal ? '#9c8654' : isParallax ? '#4d8c9e' : isPraxis ? '#c4943e' : '#6b7280';
+              const prefix = isLiminal ? "Liminal" : isParallax ? "Parallax" : isPraxis ? "Praxis" : null;
+              const body = prefix ? desc.slice(prefix.length + 1).trim() : desc;
+              return (
+                <div key={i} className="flex items-start gap-2.5 px-3 py-2.5 rounded-sm" style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.05)' }}>
+                  <div className="flex-shrink-0 mt-1.5" style={{ width: '6px', height: '6px', borderRadius: '50%', background: dotColor }} />
+                  <p className="text-xs text-foreground/60 leading-relaxed">{body}</p>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
       {/* Timestamps */}
       <div className="flex items-center gap-6 mt-8 pt-6 border-t border-border/30">
         <div>
@@ -342,6 +432,17 @@ export default function AxiomDetail({ params }: { params: { id: string } }) {
           </button>
         </div>
       </div>
+
+      {/* Constitutional Promotion Ceremony */}
+      {showCeremony && ceremonyAxiom && (
+        <ConstitutionalMoment
+          axiom={ceremonyAxiom}
+          onContinue={() => {
+            setShowCeremony(false);
+            navigate("/constitution");
+          }}
+        />
+      )}
 
       {/* Manual Promote Modal */}
       {showPromoteModal && (

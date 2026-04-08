@@ -40,6 +40,16 @@ function TensionCard({ tension, onDelete }: { tension: Tension; onDelete: (id: n
         <div className="px-8 pb-6">
           <p className="text-sm text-foreground/80 leading-relaxed mb-4">{tension.description}</p>
 
+          {/* Provenance note for auto-created tensions from the Parallax pipeline */}
+          {tension.description.startsWith('Parallax pattern contradicts proposed axiom') && (
+            <div className="mt-3 mb-1 flex items-start gap-2">
+              <div className="flex-shrink-0 mt-0.5" style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#4d8c9e', marginTop: '5px' }} />
+              <p className="text-[10px] font-mono text-muted-foreground/40 leading-relaxed italic">
+                This tension was surfaced when a Parallax pattern contradicted a constitutional principle.
+              </p>
+            </div>
+          )}
+
           {evidence.length > 0 && (
             <div className="mt-4">
               <div className="font-mono text-[10px] uppercase tracking-widest-constitutional text-muted-foreground/40 mb-2">

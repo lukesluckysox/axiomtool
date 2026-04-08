@@ -71,6 +71,12 @@ function RevisionEntry({ revision, onDelete }: { revision: Revision; onDelete: (
         </div>
       )}
 
+      {!revision.triggeringEvidence && (
+        <p className="mt-4 text-[10px] font-mono text-muted-foreground/25 italic">
+          No triggering evidence recorded — manually entered.
+        </p>
+      )}
+
       {/* Delete */}
       <div className="mt-4 opacity-0 group-hover:opacity-100 transition-opacity">
         <button

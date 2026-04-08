@@ -1,9 +1,10 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import type { Axiom, Tension, Revision } from "@shared/schema";
 import ConfidenceBadge from "@/components/ConfidenceBadge";
 import { apiRequest } from "@/lib/queryClient";
 import { Link } from "wouter";
+import { useToast } from "@/hooks/use-toast";
 
 function Section({ label, children, note }: { label: string; children: React.ReactNode; note?: string }) {
   return (
@@ -199,12 +200,26 @@ function PreambleBlock() {
 }
 
 export default function Constitution() {
+  const { toast } = useToast();
   const { data: axioms = [], isLoading: loadingAxioms } = useQuery<Axiom[]>({
     queryKey: ["/api/axioms", "constitutional"],
     queryFn: () => fetch("/api/axioms?stage=constitutional").then(r => r.json()),
   });
   const { data: tensions = [], isLoading: loadingTensions } = useQuery<Tension[]>({ queryKey: ["/api/tensions"] });
   const { data: revisions = [], isLoading: loadingRevisions } = useQuery<Revision[]>({ queryKey: ["/api/revisions"] });
+
+  // Toast: once per session if an axiom was recently promoted (last 24h)
+  useEffect(() => {
+    if (axioms.length === 0) return;
+    const sessionKey = 'axiom_constitution_toast_shown';
+    if (sessionStorage.getItem(sessionKey)) return;
+    const oneDayAgo = Date.now() - 24 * 60 * 60 * 1000;
+    const hasRecent = axioms.some((a) => new Date(a.updatedAt).getTime() > oneDayAgo);
+    if (hasRecent) {
+      sessionStorage.setItem(sessionKey, '1');
+      toast({ description: "A truth was recently promoted to your constitution." });
+    }
+  }, [axioms]);
 
   const isLoading = loadingAxioms || loadingTensions || loadingRevisions;
 
