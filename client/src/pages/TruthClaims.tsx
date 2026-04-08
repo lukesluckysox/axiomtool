@@ -7,7 +7,24 @@ import SourceTags, { SourceLegend } from "@/components/SourceTags";
 
 const CONFIDENCE_ORDER = ["high", "medium-high", "medium", "medium-low", "low"];
 
+function investigationPrompt(axiom: Axiom): string {
+  if (axiom.parallaxCount > 0 && axiom.liminalCount > 0) {
+    return "Convergence detected — examine cross-tool agreement";
+  }
+  if (axiom.parallaxCount > 0 && axiom.liminalCount === 0) {
+    return "Pattern-derived — investigate behavioral consistency";
+  }
+  if (axiom.liminalCount > 0 && axiom.parallaxCount === 0) {
+    return "Belief-surfaced — question whether this holds under scrutiny";
+  }
+  if (axiom.praxisCount > 0) {
+    return "Experimentally informed — review the evidence";
+  }
+  return "Awaiting examination";
+}
+
 function AxiomRow({ axiom }: { axiom: Axiom }) {
+  const prompt = investigationPrompt(axiom);
   return (
     <Link href={`/axiom/${axiom.id}`}>
       <div
@@ -23,18 +40,38 @@ function AxiomRow({ axiom }: { axiom: Axiom }) {
 
         {/* Content */}
         <div className="flex-1 min-w-0">
-          <div className="flex items-start justify-between gap-4">
-            <h3 className="font-serif text-lg leading-snug text-foreground group-hover:text-foreground/90 transition-colors">
-              {axiom.title}
-            </h3>
-            <div className="flex-shrink-0 pt-1">
+          {/* Top meta row */}
+          <div className="flex items-center justify-between gap-4 mb-1.5">
+            <div className="flex items-center gap-2">
+              <span className="font-mono text-[9px] uppercase tracking-wider text-muted-foreground/40">
+                PROPOSED
+              </span>
+              <span className="font-mono text-[9px] text-muted-foreground/30">·</span>
+              <span className="font-mono text-[9px] text-muted-foreground/30">
+                {new Date(axiom.updatedAt).toLocaleDateString("en-US", {
+                  year: "numeric",
+                  month: "short",
+                  day: "numeric",
+                })}
+              </span>
+            </div>
+            <div className="flex-shrink-0">
               <ConfidenceBadge confidence={axiom.confidence} />
             </div>
           </div>
-          <p className="mt-1.5 text-sm text-muted-foreground/80 leading-relaxed line-clamp-2">
-            {axiom.truthClaim}
+
+          {/* Title */}
+          <h3 className="font-serif text-base leading-snug text-foreground group-hover:text-foreground/90 transition-colors mb-1.5">
+            {axiom.title}
+          </h3>
+
+          {/* Quoted truth claim */}
+          <p className="text-sm text-muted-foreground/60 leading-relaxed italic mb-2.5 line-clamp-2">
+            &ldquo;{axiom.truthClaim}&rdquo;
           </p>
-          <div className="mt-2.5 flex items-center gap-4">
+
+          {/* Source tags + provenance badge */}
+          <div className="flex items-center gap-4 mb-1.5">
             <SourceTags
               liminal={axiom.liminalCount}
               parallax={axiom.parallaxCount}
@@ -42,22 +79,20 @@ function AxiomRow({ axiom }: { axiom: Axiom }) {
             />
             {(axiom as any).source === 'seeded' && (
               <span className="font-mono text-[9px] uppercase tracking-wider text-amber-500/40">
-                seeded
+                original
               </span>
             )}
             {(axiom as any).source === 'lumen_push' && (
               <span className="font-mono text-[9px] uppercase tracking-wider text-blue-400/40">
-                discovered
+                pipeline
               </span>
             )}
-            <span className="text-[10px] font-mono text-muted-foreground/30">
-              {new Date(axiom.updatedAt).toLocaleDateString("en-US", {
-                year: "numeric",
-                month: "short",
-                day: "numeric",
-              })}
-            </span>
           </div>
+
+          {/* Investigation prompt */}
+          <p className="text-[10px] font-mono text-muted-foreground/30 leading-relaxed">
+            {prompt}
+          </p>
         </div>
 
         {/* Arrow */}
@@ -99,15 +134,18 @@ export default function TruthClaims() {
         <div className="flex items-end justify-between">
           <div>
             <h1 className="font-mono text-xs tracking-widest-constitutional uppercase text-muted-foreground mb-2">
-              Proving Ground
+              Proposed Axioms
             </h1>
             <div className="font-serif text-3xl text-foreground">
-              {isLoading ? "—" : (axioms?.length ?? 0)} candidates
+              {isLoading ? "—" : (axioms?.length ?? 0)} proposals under examination
             </div>
+            <p className="mt-1 text-xs text-muted-foreground/50 leading-relaxed italic">
+              Principles emerging from observation. Each requires examination before it can govern.
+            </p>
             <div className="mt-1.5 flex items-center gap-4 text-xs text-muted-foreground/60 font-mono">
-              <span>{highCount + mhCount} high confidence</span>
+              <span>{highCount + mhCount} with strong evidence</span>
               <span className="text-muted-foreground/30">·</span>
-              <span>{contradictions} with counterevidence</span>
+              <span>{contradictions} contested</span>
             </div>
           </div>
           <Link href="/new">
@@ -115,7 +153,7 @@ export default function TruthClaims() {
               className="text-[11px] font-mono tracking-widest-constitutional uppercase px-4 py-2 border border-border text-muted-foreground hover:text-foreground hover:border-foreground/30 transition-colors rounded-sm"
               data-testid="button-new-synthesis"
             >
-              + New Synthesis
+              + Submit Proposal
             </button>
           </Link>
         </div>
@@ -133,7 +171,7 @@ export default function TruthClaims() {
               }`}
               data-testid={`filter-${f}`}
             >
-              {f === "all" ? "All" : f.toUpperCase()}
+              {f === "all" ? "All proposals" : f.toUpperCase()}
             </button>
           ))}
           <div className="ml-auto">
@@ -150,18 +188,13 @@ export default function TruthClaims() {
       ) : filtered.length === 0 ? (
         <div className="px-8 py-16 text-center">
           <div className="font-serif text-xl text-muted-foreground/40 mb-3">
-            {filter === "all" ? "No candidates yet." : `No ${filter} confidence candidates.`}
+            {filter === "all" ? "No proposals yet." : `No ${filter} confidence proposals.`}
           </div>
           {filter === "all" && (
             <>
               <p className="text-sm text-muted-foreground/40 leading-relaxed mb-4 max-w-sm mx-auto">
-                Raw signal from the epistemic pipeline arrives here. Deepen or promote candidates to move them into the Constitution.
+                When Liminal questions beliefs and Parallax identifies patterns, proposals will surface here for your examination.
               </p>
-              <Link href="/new">
-                <button className="text-xs font-mono tracking-wider text-primary hover:text-primary/80 transition-colors">
-                  Begin synthesis →
-                </button>
-              </Link>
             </>
           )}
         </div>

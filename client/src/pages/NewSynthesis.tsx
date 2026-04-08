@@ -196,7 +196,7 @@ export default function NewSynthesis() {
       {/* Header */}
       <div className="mb-8">
         <h1 className="font-mono text-xs tracking-widest-constitutional uppercase text-muted-foreground mb-3">
-          New Synthesis
+          Submit Proposal
         </h1>
         <p className="text-sm text-muted-foreground/60 leading-relaxed">
           {STEPS[step - 1].description}
@@ -323,7 +323,7 @@ export default function NewSynthesis() {
             What is true, and how should you act on it?
           </div>
 
-          <Field label="Truth Claim" desc="State the principle as a direct, earned claim. Not a preference — a provisional truth.">
+          <Field label="PROPOSED CLAIM" desc="State the principle as a direct, earned claim. Not a preference — a provisional truth.">
             <Textarea
               value={form.truthClaim}
               onChange={set("truthClaim") as any}
@@ -458,7 +458,7 @@ export default function NewSynthesis() {
             }`}
             data-testid="button-submit"
           >
-            {createMutation.isPending ? "Recording…" : "Record Axiom"}
+            {createMutation.isPending ? "Submitting…" : "Submit for Examination"}
           </button>
         )}
       </div>

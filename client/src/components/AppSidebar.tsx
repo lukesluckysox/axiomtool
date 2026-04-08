@@ -14,8 +14,8 @@ const AxiomLogo = () => (
 const navItems = [
   {
     href: "/",
-    label: "Proving Ground",
-    shortLabel: "PROVING GROUND",
+    label: "Proposed Axioms",
+    shortLabel: "PROPOSALS",
     queryKey: "/api/axioms?stage=proving_ground",
   },
   {

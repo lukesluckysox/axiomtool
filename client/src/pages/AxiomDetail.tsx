@@ -49,7 +49,7 @@ export default function AxiomDetail({ params }: { params: { id: string } }) {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/axioms", id] });
       queryClient.invalidateQueries({ queryKey: ["/api/axioms"] });
-      toast({ description: "Deepened and promoted to Constitution." });
+      toast({ description: "Synthesized and enshrined as governing principle." });
     },
     onError: (err: any) => {
       let msg = "Enrichment failed. Check that ANTHROPIC_API_KEY is set on the server.";
@@ -94,7 +94,7 @@ export default function AxiomDetail({ params }: { params: { id: string } }) {
       <div className="px-10 py-12">
         <div className="font-serif text-xl text-muted-foreground/40 mb-3">Axiom not found.</div>
         <Link href="/">
-          <button className="text-xs font-mono tracking-wider text-primary">← Back to Truth Claims</button>
+          <button className="text-xs font-mono tracking-wider text-primary">← Proposed Axioms</button>
         </Link>
       </div>
     );
@@ -111,7 +111,7 @@ export default function AxiomDetail({ params }: { params: { id: string } }) {
       <div className="mb-8">
         <Link href="/">
           <button className="text-[10px] font-mono tracking-widest-constitutional uppercase text-muted-foreground/40 hover:text-muted-foreground transition-colors">
-            ← Truth Claims
+            ← Proposed Axioms
           </button>
         </Link>
       </div>
@@ -157,10 +157,10 @@ export default function AxiomDetail({ params }: { params: { id: string } }) {
       {(axiom as any).stage !== 'constitutional' && (
         <div className="mb-6 px-5 py-4 border border-border/40 rounded-sm bg-card/20">
           <div className="font-mono text-[9px] uppercase tracking-wider text-muted-foreground/40 mb-3">
-            Proving Ground
+            PROPOSAL STATUS
           </div>
           <p className="text-xs text-muted-foreground/50 leading-relaxed mb-4">
-            This candidate has not yet been promoted to the Constitution. Deepen it with AI analysis or promote it manually if it rings true without further examination.
+            This principle is proposed, not yet governing. Examine the evidence below, then choose: deepen it through synthesis, or promote it directly if the truth is self-evident.
           </p>
           <div className="flex items-center gap-3">
             <button
@@ -168,13 +168,13 @@ export default function AxiomDetail({ params }: { params: { id: string } }) {
               disabled={enrichMutation.isPending}
               className="text-[10px] font-mono uppercase tracking-wider px-3 py-1.5 border border-primary/30 text-primary hover:bg-primary/10 rounded-sm transition-colors disabled:opacity-40"
             >
-              {enrichMutation.isPending ? "Deepening…" : "Deepen → Constitution"}
+              {enrichMutation.isPending ? "Synthesizing…" : "Examine & Synthesize"}
             </button>
             <button
               onClick={() => setShowPromoteModal(true)}
               className="text-[10px] font-mono uppercase tracking-wider px-3 py-1.5 border border-border text-muted-foreground/60 hover:text-foreground hover:border-foreground/30 rounded-sm transition-colors"
             >
-              Manual Promote →
+              Promote as Self-Evident →
             </button>
           </div>
         </div>
@@ -183,8 +183,8 @@ export default function AxiomDetail({ params }: { params: { id: string } }) {
       {/* Constitutional badge — for promoted axioms */}
       {(axiom as any).stage === 'constitutional' && (
         <div className="mb-4 flex items-center gap-2">
-          <span className="font-mono text-[9px] uppercase tracking-wider text-emerald-500/60 border border-emerald-500/20 px-2 py-0.5 rounded-sm">
-            constitutional
+          <span className="font-mono text-[9px] uppercase tracking-wider text-emerald-400/70 border border-emerald-500/20 px-2 py-0.5 rounded-sm">
+            GOVERNING PRINCIPLE
           </span>
         </div>
       )}
@@ -192,7 +192,7 @@ export default function AxiomDetail({ params }: { params: { id: string } }) {
       {/* Truth Claim — prominent */}
       <div className="bg-card border border-card-border rounded-sm px-6 py-5 mb-6">
         <div className="font-mono text-[10px] tracking-widest-constitutional uppercase text-muted-foreground/50 mb-3">
-          Truth Claim
+          {(axiom as any).stage === 'constitutional' ? 'GOVERNING CLAIM' : 'PROPOSED CLAIM'}
         </div>
         <blockquote className="font-serif text-xl leading-relaxed text-foreground italic">
           "{axiom.truthClaim}"
@@ -200,17 +200,21 @@ export default function AxiomDetail({ params }: { params: { id: string } }) {
         {axiom.workingPrinciple && (
           <div className="mt-4 pt-4 border-t border-border/50">
             <div className="font-mono text-[10px] tracking-widest-constitutional uppercase text-muted-foreground/40 mb-2">
-              Working Principle
+              DIRECTIVE
             </div>
             <p className="text-sm text-foreground/80 leading-relaxed">{axiom.workingPrinciple}</p>
+            <p className="text-[10px] font-mono text-muted-foreground/30 mt-1">How this truth directs action.</p>
           </div>
         )}
       </div>
 
       {/* Synthesis Chain */}
       <div data-testid="synthesis-chain">
-        {/* Inputs */}
-        <SynthesisSection label="Signal Inputs">
+        {/* Layer 1: Source Evidence */}
+        <SynthesisSection label="SOURCE EVIDENCE">
+          <p className="text-[10px] font-mono text-muted-foreground/30 mb-3 leading-relaxed">
+            What was observed. Raw data from the instruments.
+          </p>
           <div className="space-y-2">
             {inputDescriptions.map((desc, i) => {
               const isLiminal = desc.startsWith("Liminal:");
@@ -247,24 +251,41 @@ export default function AxiomDetail({ params }: { params: { id: string } }) {
               <p className="text-sm text-muted-foreground/50">No input descriptions recorded.</p>
             )}
           </div>
+          {axiom.signal && (
+            <p className="text-sm text-foreground/80 leading-relaxed mt-4">{axiom.signal}</p>
+          )}
         </SynthesisSection>
 
-        {axiom.signal && (
-          <SynthesisSection label="Signal">
-            <p className="text-sm text-foreground/80 leading-relaxed">{axiom.signal}</p>
-          </SynthesisSection>
-        )}
-
+        {/* Layer 2: Pattern Analysis */}
         {axiom.convergence && (
-          <SynthesisSection label="Convergence">
+          <SynthesisSection label="PATTERN ANALYSIS">
+            <p className="text-[10px] font-mono text-muted-foreground/30 mb-3 leading-relaxed">
+              How the evidence aligns. Structural observations about recurrence and cross-tool agreement.
+            </p>
             <p className="text-sm text-foreground/80 leading-relaxed">{axiom.convergence}</p>
           </SynthesisSection>
         )}
 
+        {/* Layer 3: Interpretive Claim */}
         {axiom.interpretation && (
-          <SynthesisSection label="Interpretation">
+          <SynthesisSection label="INTERPRETIVE CLAIM">
+            <p className="text-[10px] font-mono text-muted-foreground/30 mb-3 leading-relaxed">
+              What this may mean. One level above the evidence — provisional until examined.
+            </p>
             <p className="text-sm text-foreground/80 leading-relaxed">{axiom.interpretation}</p>
           </SynthesisSection>
+        )}
+
+        {/* The Proposal summary */}
+        {axiom.interpretation && (
+          <div className="py-5 border-b border-border/50">
+            <div className="font-mono text-[10px] tracking-widest-constitutional uppercase text-muted-foreground/40 mb-2">
+              THE PROPOSAL
+            </div>
+            <p className="font-serif text-base italic text-foreground/70 leading-relaxed">
+              &ldquo;{axiom.truthClaim}&rdquo;
+            </p>
+          </div>
         )}
 
         {axiom.counterevidence && (
@@ -327,14 +348,14 @@ export default function AxiomDetail({ params }: { params: { id: string } }) {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm" onClick={() => setShowPromoteModal(false)}>
           <div className="bg-card border border-border rounded-sm p-6 max-w-lg w-full mx-4 shadow-xl" onClick={e => e.stopPropagation()}>
             <div className="font-mono text-[10px] uppercase tracking-widest-constitutional text-muted-foreground/50 mb-4">
-              Manual Promotion
+              Promote as Governing Principle
             </div>
             <p className="text-sm text-muted-foreground/70 leading-relaxed mb-4">
-              This axiom will enter the Constitution as-is. Write the governing principle — one sentence describing how this truth should direct future action.
+              You are endorsing this proposal as a principle worthy of governing. Write the directive — one sentence describing how this truth should direct future thought and action.
             </p>
             <div className="mb-2">
               <div className="font-mono text-[9px] uppercase tracking-wider text-muted-foreground/40 mb-2">
-                Truth Claim
+                PROPOSED CLAIM
               </div>
               <p className="text-sm text-foreground/70 italic leading-relaxed border-l-2 border-border/50 pl-3 mb-4">
                 &ldquo;{axiom.truthClaim}&rdquo;
@@ -342,12 +363,12 @@ export default function AxiomDetail({ params }: { params: { id: string } }) {
             </div>
             <div className="mb-5">
               <label className="font-mono text-[9px] uppercase tracking-wider text-muted-foreground/40 block mb-2">
-                Working Principle
+                GOVERNING DIRECTIVE
               </label>
               <textarea
                 value={promotePrinciple}
                 onChange={e => setPromotePrinciple(e.target.value)}
-                placeholder='e.g. "When visibility is offered, treat the discomfort as signal — not as reason to withdraw."'
+                placeholder='e.g. "When the pattern surfaces, treat it as signal rather than noise — and act accordingly."'
                 className="w-full bg-background border border-border rounded-sm px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground/30 focus:outline-none focus:border-primary/50 resize-none leading-relaxed"
                 rows={3}
                 autoFocus
@@ -365,7 +386,7 @@ export default function AxiomDetail({ params }: { params: { id: string } }) {
                 disabled={promoteMutation.isPending || promotePrinciple.trim().length < 5}
                 className="text-[10px] font-mono uppercase tracking-wider px-4 py-1.5 border border-primary/30 text-primary hover:bg-primary/10 rounded-sm transition-colors disabled:opacity-40"
               >
-                {promoteMutation.isPending ? "Promoting…" : "Promote to Constitution →"}
+                {promoteMutation.isPending ? "Enshrining…" : "Enshrine in Constitution →"}
               </button>
             </div>
           </div>

@@ -25,12 +25,12 @@ function Section({ label, children, note }: { label: string; children: React.Rea
 function SourceBadge({ source }: { source?: string }) {
   if (source === 'seeded') return (
     <span className="font-mono text-[9px] uppercase tracking-wider text-amber-500/50 border border-amber-500/20 px-1.5 py-0.5 rounded-sm">
-      seeded
+      original
     </span>
   );
   if (source === 'lumen_push') return (
     <span className="font-mono text-[9px] uppercase tracking-wider text-blue-400/50 border border-blue-400/20 px-1.5 py-0.5 rounded-sm">
-      discovered
+      pipeline
     </span>
   );
   return null;
@@ -52,7 +52,7 @@ function GoverningPrinciple({ axiom, rank }: { axiom: Axiom; rank: number }) {
                   {axiom.workingPrinciple}
                 </p>
                 <p className="text-xs text-muted-foreground/50 italic leading-relaxed">
-                  From: &ldquo;{axiom.truthClaim}&rdquo;
+                  Grounded in: &ldquo;{axiom.truthClaim}&rdquo;
                 </p>
               </>
             ) : (
@@ -61,7 +61,7 @@ function GoverningPrinciple({ axiom, rank }: { axiom: Axiom; rank: number }) {
                   &ldquo;{axiom.truthClaim}&rdquo;
                 </p>
                 <p className="text-[10px] font-mono text-muted-foreground/30">
-                  Governing principle not yet derived →
+                  Directive pending — examine to derive →
                 </p>
               </>
             )}
@@ -171,7 +171,7 @@ function PreambleBlock() {
           disabled={generateMutation.isPending || axioms.length === 0}
           className="text-[11px] font-mono uppercase tracking-wider text-primary hover:text-primary/80 transition-colors disabled:opacity-40"
         >
-          {generateMutation.isPending ? "Generating…" : "Generate preamble →"}
+          {generateMutation.isPending ? "Composing…" : "Compose Preamble from Governing Principles"}
         </button>
       </div>
     );
@@ -188,7 +188,7 @@ function PreambleBlock() {
           disabled={generateMutation.isPending}
           className={`text-[10px] font-mono uppercase tracking-wider transition-colors ${isStale ? 'text-amber-500/60 hover:text-amber-500' : 'text-muted-foreground/30 hover:text-muted-foreground'}`}
         >
-          {generateMutation.isPending ? "Regenerating…" : isStale ? "↻ Stale — regenerate" : "↻ Regenerate"}
+          {generateMutation.isPending ? "Resynthesizing…" : isStale ? "↻ Stale — resynthesize" : "↻ Resynthesize Preamble"}
         </button>
       </div>
       <p className="text-sm text-foreground/75 leading-relaxed border-l-2 border-border/50 pl-4">
@@ -239,7 +239,7 @@ export default function Constitution() {
           The Current Operating Structure
         </div>
         <p className="text-xs text-muted-foreground/50 leading-relaxed mb-4">
-          {axioms.length} constitutional axioms · {tensions.length} tensions · {revisions.length} revisions. Earned, not collected.
+          {axioms.length} governing principles · {tensions.length} active tensions · {revisions.length} amendments. A living document.
         </p>
         {lastUpdated && (
           <div className="font-mono text-[10px] text-muted-foreground/30 uppercase tracking-wider">
@@ -251,13 +251,13 @@ export default function Constitution() {
 
       {isEmpty ? (
         <div className="text-center py-12">
-          <div className="font-serif text-xl text-muted-foreground/40 mb-4">The constitution is empty.</div>
+          <div className="font-serif text-xl text-muted-foreground/40 mb-4">The Constitution is empty.</div>
           <p className="text-sm text-muted-foreground/50 leading-relaxed mb-6 max-w-sm mx-auto">
-            No axioms have been promoted to the Constitution yet. Visit the Proving Ground to deepen or promote candidates.
+            Examine and approve proposals from the Proposed Axioms to establish your first governing principles.
           </p>
           <Link href="/">
             <button className="text-xs font-mono tracking-wider text-primary hover:text-primary/80 transition-colors">
-              Go to Proving Ground →
+              Review proposals →
             </button>
           </Link>
         </div>
@@ -267,8 +267,8 @@ export default function Constitution() {
 
           {governingPrinciples.length > 0 && (
             <Section
-              label="I. Governing Principles"
-              note="How to orient, decide, and act — derived from high-confidence truth claims. Each principle here translates a truth claim into a durable rule of conduct."
+              label="I. ARTICLES OF GOVERNANCE"
+              note="Principles derived from examined evidence. Each governs how truth is applied to action."
             >
               {governingPrinciples.map((axiom, i) => (
                 <GoverningPrinciple key={axiom.id} axiom={axiom} rank={i + 1} />
@@ -305,8 +305,8 @@ export default function Constitution() {
 
           {tensions.length > 0 && (
             <Section
-              label="III. Active Tensions"
-              note="Unresolved polarities that continue to organize decisions. Not problems to eliminate — structures to understand."
+              label="III. ACTIVE TENSIONS"
+              note="Principles in productive conflict. These are not contradictions to resolve but polarities to navigate."
             >
               {tensions.map((tension) => (
                 <TensionEntry key={tension.id} tension={tension} />
@@ -316,8 +316,8 @@ export default function Constitution() {
 
           {contradictions.length > 0 && (
             <Section
-              label="IV. Acknowledged Contradictions"
-              note="Areas where evidence is mixed or the self remains divided. Held provisionally."
+              label="IV. UNDER SCRUTINY"
+              note="Principles with active counterevidence. Held provisionally — subject to revision."
             >
               {contradictions.map((axiom) => (
                 <ContradictionEntry key={axiom.id} axiom={axiom} />
@@ -327,8 +327,8 @@ export default function Constitution() {
 
           {majorRevisions.length > 0 && (
             <Section
-              label="V. Historical Revisions"
-              note="The record of how the constitution has evolved."
+              label="V. CONSTITUTIONAL AMENDMENTS"
+              note="The record of what changed and why. A constitution that cannot revise itself is not alive."
             >
               {majorRevisions.map((revision) => (
                 <RevisionSummary key={revision.id} revision={revision} />
