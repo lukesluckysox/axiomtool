@@ -5,7 +5,10 @@ import path from "path";
 
 const dbPath = process.env.RAILWAY_VOLUME_MOUNT_PATH
   ? `${process.env.RAILWAY_VOLUME_MOUNT_PATH}/axiom.db`
-  : path.resolve(process.cwd(), "axiom.db");
+  : process.env.DATA_DIR
+    ? `${process.env.DATA_DIR}/axiom.db`
+    : path.resolve(process.cwd(), "axiom.db");
+console.log(`[axiomtool/db] SQLite path: ${dbPath} (volume: ${!!process.env.RAILWAY_VOLUME_MOUNT_PATH})`);
 const sqlite = new Database(dbPath);
 sqlite.pragma("journal_mode = WAL");
 sqlite.pragma("foreign_keys = ON");
@@ -76,10 +79,10 @@ try {
 
 // Mark original seeded axioms (first 5 per user)
 try {
-  sqlite.exec(`
-    UPDATE axioms SET source = 'seeded'
-    WHERE user_id = '1' AND number <= 5 AND source = 'manual'
-  `);
+  const manualCount = sqlite.prepare(`SELECT COUNT(*) as cnt FROM axioms WHERE user_id = '1' AND source = 'manual'`).get() as { cnt: number };
+  if (manualCount.cnt > 0) {
+    sqlite.exec(`UPDATE axioms SET source = 'seeded' WHERE user_id = '1' AND number <= 5 AND source = 'manual'`);
+  }
 } catch {}
 
 // Create constitutions table

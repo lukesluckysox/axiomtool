@@ -185,6 +185,33 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     }
 
     try {
+      // Idempotent upsert: if an axiom with same title + source already exists, update it
+      const existingAxioms = storage.getAxioms(String(userId));
+      const existing = existingAxioms.find(a =>
+        a.title === (title || truthClaim.slice(0, 200)) &&
+        a.source === 'lumen_push'
+      );
+
+      if (existing) {
+        const updated = storage.updateAxiom(existing.id, {
+          truthClaim,
+          signal,
+          convergence,
+          interpretation,
+          workingPrinciple: existing.workingPrinciple || workingPrinciple, // preserve user edits
+          confidence,
+          confidenceScore: Number(confidenceScore),
+          counterevidence: existing.counterevidence || counterevidence, // preserve user edits
+          revisionNote: existing.revisionNote || revisionNote,
+          liminalCount: Number(liminalCount),
+          parallaxCount: Number(parallaxCount),
+          praxisCount: Number(praxisCount),
+          inputDescriptions: typeof inputDescriptions === 'string' ? inputDescriptions : JSON.stringify(inputDescriptions),
+          source: 'lumen_push',
+        } as any, String(userId));
+        return res.json({ axiom: updated, action: 'updated' });
+      }
+
       const axiom = storage.createAxiom(
         {
           title: title || truthClaim.slice(0, 200),
@@ -202,7 +229,8 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
           parallaxCount: Number(parallaxCount),
           praxisCount: Number(praxisCount),
           inputDescriptions,
-        },
+          source: 'lumen_push',
+        } as any,
         String(userId)
       );
       return res.status(201).json(axiom);

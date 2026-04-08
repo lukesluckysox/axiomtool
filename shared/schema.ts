@@ -33,7 +33,7 @@ export const axioms = sqliteTable("axioms", {
 });
 
 export const insertAxiomSchema = createInsertSchema(axioms).omit({
-  id: true, userId: true, number: true, createdAt: true, updatedAt: true, source: true, stage: true,
+  id: true, userId: true, number: true, createdAt: true, updatedAt: true, stage: true,
 });
 
 export type InsertAxiom = z.infer<typeof insertAxiomSchema>;
