@@ -49,7 +49,10 @@ export default function AxiomDetail({ params }: { params: { id: string } }) {
   });
 
   const enrichMutation = useMutation({
-    mutationFn: () => apiRequest("POST", `/api/axioms/${id}/enrich`, {}),
+    mutationFn: async () => {
+      const res = await apiRequest("POST", `/api/axioms/${id}/enrich`, {});
+      return await res.json();
+    },
     onSuccess: (data: any) => {
       queryClient.invalidateQueries({ queryKey: ["/api/axioms", id] });
       queryClient.invalidateQueries({ queryKey: ["/api/axioms"] });
