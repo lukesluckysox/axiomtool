@@ -38,6 +38,7 @@ function AuthGate({ children }: { children: React.ReactNode }) {
   if (status === 'unauth') {
     return (
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '100vh', background: '#0f1117', color: '#8D99AE', fontFamily: 'monospace', textAlign: 'center', padding: '1.5rem' }}>
+        <a href="https://lumen-os.up.railway.app" style={{ position: 'absolute', top: '1.25rem', left: '1.5rem', fontSize: '0.8125rem', color: 'rgba(141,153,174,0.45)', textDecoration: 'none', letterSpacing: '0.04em', fontFamily: 'monospace' }}>◁ Lumen</a>
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1rem', padding: '2.5rem 2rem', border: '1px solid rgba(61,123,186,0.15)', borderRadius: '8px', background: 'rgba(255,255,255,0.02)' }}>
           <div style={{ fontSize: '0.75rem', letterSpacing: '0.15em', textTransform: 'uppercase', color: '#3d7bba', fontWeight: 600, marginBottom: '0.5rem' }}>AXIOM</div>
           <div style={{ fontSize: '1rem', color: '#C8CCD5' }}>The constitution forms from within Lumen.</div>
