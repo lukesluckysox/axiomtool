@@ -121,7 +121,24 @@ function generateTemplatePreamble(axioms: Axiom[], tensions: Tension[], revision
 export async function registerRoutes(httpServer: Server, app: Express): Promise<Server> {
   // ─── Health ────────────────────────────────────────────────────────────────
   app.get("/api/health", (_req, res) => {
-    res.json({ status: "ok", timestamp: new Date().toISOString() });
+    const fs = require('fs');
+    const path = require('path');
+    const volPath = process.env.RAILWAY_VOLUME_MOUNT_PATH;
+    const dbFile = volPath ? `${volPath}/axiom.db` : process.env.DATA_DIR ? `${process.env.DATA_DIR}/axiom.db` : 'axiom.db (ephemeral)';
+    const resolvedPath = volPath ? `${volPath}/axiom.db` : process.env.DATA_DIR ? `${process.env.DATA_DIR}/axiom.db` : path.resolve(process.cwd(), 'axiom.db');
+    const dbExists = fs.existsSync(resolvedPath);
+    const dbSize = dbExists ? (fs.statSync(resolvedPath).size / 1024).toFixed(1) + ' KB' : 'N/A';
+    res.json({
+      status: "ok",
+      timestamp: new Date().toISOString(),
+      persistence: {
+        volumeMounted: !!volPath,
+        volumePath: volPath ?? '(none)',
+        dbFile,
+        dbExists,
+        dbSize,
+      },
+    });
   });
 
   // ─── SSO Auth ────────────────────────────────────────────────────────────────
