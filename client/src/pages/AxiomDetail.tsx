@@ -7,6 +7,7 @@ import ConfidenceBadge, { ConfidenceBar } from "@/components/ConfidenceBadge";
 import SourceTags from "@/components/SourceTags";
 import { useToast } from "@/hooks/use-toast";
 import ConstitutionalMoment from "@/components/ConstitutionalMoment";
+import { Skeleton } from "@/components/ui/skeleton";
 
 function SynthesisSection({ label, children }: { label: string; children: React.ReactNode }) {
   return (
@@ -43,7 +44,7 @@ export default function AxiomDetail({ params }: { params: { id: string } }) {
   const [showCeremony, setShowCeremony] = useState(false);
   const [ceremonyAxiom, setCeremonyAxiom] = useState<{ truthClaim: string; workingPrinciple: string; confidence: string } | null>(null);
 
-  const { data: axiom, isLoading } = useQuery<Axiom>({
+  const { data: axiom, isLoading, isError, refetch } = useQuery<Axiom>({
     queryKey: ["/api/axioms", id],
   });
 
@@ -63,13 +64,8 @@ export default function AxiomDetail({ params }: { params: { id: string } }) {
         toast({ description: "Synthesized and enshrined as governing principle." });
       }
     },
-    onError: (err: any) => {
-      let msg = "Enrichment failed. Check that ANTHROPIC_API_KEY is set on the server.";
-      try {
-        const body = JSON.parse(err.message?.replace(/^\d+:\s*/, '') || '{}');
-        if (body.error) msg = body.error;
-      } catch {}
-      toast({ variant: "destructive", description: msg });
+    onError: () => {
+      toast({ variant: "destructive", description: "Enrichment is temporarily unavailable. Please try again later." });
     },
   });
 
@@ -106,17 +102,49 @@ export default function AxiomDetail({ params }: { params: { id: string } }) {
 
   if (isLoading) {
     return (
-      <div className="px-10 py-12 font-mono text-sm text-muted-foreground/40">Loading…</div>
+      <div className="max-w-3xl mx-auto px-4 md:px-8 pt-10 pb-16">
+        <Skeleton className="h-3 w-28 mb-8" />
+        <div className="mb-8">
+          <Skeleton className="h-7 w-3/4 mb-4" />
+          <div className="flex items-center gap-6 pl-8">
+            <Skeleton className="h-4 w-20" />
+            <Skeleton className="h-4 w-32" />
+          </div>
+          <div className="mt-3 pl-8"><Skeleton className="h-1 w-full" /></div>
+        </div>
+        <Skeleton className="h-32 w-full mb-6" />
+        <Skeleton className="h-24 w-full mb-6" />
+        <Skeleton className="h-24 w-full" />
+      </div>
+    );
+  }
+
+  if (isError) {
+    return (
+      <div className="max-w-3xl mx-auto px-4 md:px-8 pt-10 pb-16 text-center">
+        <div className="max-w-sm mx-auto border border-border/50 rounded-sm p-6 bg-card/30 mt-12">
+          <div className="font-mono text-xs uppercase tracking-widest-constitutional text-destructive/70 mb-3">
+            Unable to load axiom
+          </div>
+          <p className="text-sm text-muted-foreground/50 leading-relaxed mb-4">
+            Something went wrong while loading this axiom. Please try again.
+          </p>
+          <button
+            onClick={() => refetch()}
+            className="text-xs font-mono uppercase tracking-wider text-primary hover:text-primary/80 transition-colors"
+          >
+            Retry
+          </button>
+        </div>
+      </div>
     );
   }
 
   if (!axiom) {
     return (
-      <div className="px-10 py-12">
+      <div className="px-4 md:px-10 py-12">
         <div className="font-serif text-xl text-muted-foreground/40 mb-3">Axiom not found.</div>
-        <Link href="/">
-          <button className="text-xs font-mono tracking-wider text-primary">← Proposed Axioms</button>
-        </Link>
+        <button onClick={() => window.history.back()} className="text-xs font-mono tracking-wider text-primary">← Go back</button>
       </div>
     );
   }
@@ -127,14 +155,15 @@ export default function AxiomDetail({ params }: { params: { id: string } }) {
   const totalInputs = axiom.liminalCount + axiom.parallaxCount + axiom.praxisCount;
 
   return (
-    <div className="max-w-3xl mx-auto px-8 pt-10 pb-16">
+    <div className="max-w-3xl mx-auto px-4 md:px-8 pt-10 pb-16">
       {/* Breadcrumb */}
       <div className="mb-8">
-        <Link href="/">
-          <button className="text-[10px] font-mono tracking-widest-constitutional uppercase text-muted-foreground/40 hover:text-muted-foreground transition-colors">
-            ← Proposed Axioms
-          </button>
-        </Link>
+        <button
+          onClick={() => window.history.back()}
+          className="text-[10px] font-mono tracking-widest-constitutional uppercase text-muted-foreground/40 hover:text-muted-foreground transition-colors"
+        >
+          ← Back
+        </button>
       </div>
 
       {/* Header */}
@@ -203,10 +232,18 @@ export default function AxiomDetail({ params }: { params: { id: string } }) {
 
       {/* Constitutional badge — for promoted axioms */}
       {(axiom as any).stage === 'constitutional' && (
-        <div className="mb-4 flex items-center gap-2">
+        <div className="mb-4 flex items-center gap-3">
           <span className="font-mono text-[9px] uppercase tracking-wider text-emerald-400/70 border border-emerald-500/20 px-2 py-0.5 rounded-sm">
             GOVERNING PRINCIPLE
           </span>
+          <a
+            href="https://liminal-app.up.railway.app"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-[10px] font-mono tracking-wider text-primary/50 hover:text-primary transition-colors"
+          >
+            Question this further →
+          </a>
         </div>
       )}
 
@@ -342,9 +379,19 @@ export default function AxiomDetail({ params }: { params: { id: string } }) {
 
         {/* Source type label */}
         {(axiom as any).source === 'lumen_push' && (
-          <p className="text-xs text-muted-foreground/50 leading-relaxed mb-4 italic">
-            Auto-synthesized from the Lumen pipeline.
-          </p>
+          <div className="flex items-center gap-4 mb-4">
+            <p className="text-xs text-muted-foreground/50 leading-relaxed italic">
+              Emerged from your recent reflections.
+            </p>
+            <a
+              href="https://parallaxapp.up.railway.app"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-[10px] font-mono tracking-wider text-primary/50 hover:text-primary transition-colors flex-shrink-0"
+            >
+              See the full pattern →
+            </a>
+          </div>
         )}
         {(axiom as any).source === 'seeded' && (
           <p className="text-xs text-muted-foreground/50 leading-relaxed mb-4 italic">
@@ -425,7 +472,7 @@ export default function AxiomDetail({ params }: { params: { id: string } }) {
               }
             }}
             disabled={deleteMutation.isPending}
-            className="text-[10px] font-mono uppercase tracking-widest-constitutional text-destructive/50 hover:text-destructive transition-colors"
+            className="text-[10px] font-mono uppercase tracking-widest-constitutional text-destructive/50 hover:text-destructive transition-colors min-h-[44px] flex items-center"
             data-testid="button-delete-axiom"
           >
             {deleteMutation.isPending ? "Removing…" : "Remove"}

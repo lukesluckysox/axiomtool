@@ -4,6 +4,7 @@ import { useHashLocation } from "wouter/use-hash-location";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { queryClient } from "@/lib/queryClient";
 import { Toaster } from "@/components/ui/toaster";
+import { ThemeProvider } from "@/components/ThemeProvider";
 import AppSidebar from "@/components/AppSidebar";
 import BottomNav from "@/components/BottomNav";
 import TruthClaims from "@/pages/TruthClaims";
@@ -54,30 +55,32 @@ function AuthGate({ children }: { children: React.ReactNode }) {
 
 function App() {
   return (
-    <AuthGate>
-      <QueryClientProvider client={queryClient}>
-        <Router hook={useHashLocation}>
-          <div className="flex h-screen bg-background overflow-hidden">
-            <div className="hidden md:block">
-              <AppSidebar />
+    <ThemeProvider>
+      <AuthGate>
+        <QueryClientProvider client={queryClient}>
+          <Router hook={useHashLocation}>
+            <div className="flex h-screen bg-background overflow-hidden">
+              <div className="hidden md:block">
+                <AppSidebar />
+              </div>
+              <main className="flex-1 overflow-y-auto pb-24 md:pb-0" style={{ paddingBottom: "calc(5rem + env(safe-area-inset-bottom, 0px))" }}>
+                <Switch>
+                  <Route path="/" component={TruthClaims} />
+                  <Route path="/axiom/:id" component={AxiomDetail} />
+                  <Route path="/new" component={NewSynthesis} />
+                  <Route path="/tensions" component={CoreTensions} />
+                  <Route path="/revisions" component={Revisions} />
+                  <Route path="/constitution" component={Constitution} />
+                  <Route component={NotFound} />
+                </Switch>
+              </main>
+              <BottomNav />
             </div>
-            <main className="flex-1 overflow-y-auto pb-20 md:pb-0">
-              <Switch>
-                <Route path="/" component={TruthClaims} />
-                <Route path="/axiom/:id" component={AxiomDetail} />
-                <Route path="/new" component={NewSynthesis} />
-                <Route path="/tensions" component={CoreTensions} />
-                <Route path="/revisions" component={Revisions} />
-                <Route path="/constitution" component={Constitution} />
-                <Route component={NotFound} />
-              </Switch>
-            </main>
-            <BottomNav />
-          </div>
-        </Router>
-        <Toaster />
-      </QueryClientProvider>
-    </AuthGate>
+          </Router>
+          <Toaster />
+        </QueryClientProvider>
+      </AuthGate>
+    </ThemeProvider>
   );
 }
 

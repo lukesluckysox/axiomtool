@@ -5,6 +5,7 @@ import type { Axiom } from "@shared/schema";
 import ConfidenceBadge from "@/components/ConfidenceBadge";
 import SourceTags, { SourceLegend } from "@/components/SourceTags";
 import { useToast } from "@/hooks/use-toast";
+import { Skeleton } from "@/components/ui/skeleton";
 
 const CONFIDENCE_ORDER = ["high", "medium-high", "medium", "medium-low", "low"];
 
@@ -32,7 +33,7 @@ function SourceOriginBadge({ source }: { source?: string }) {
         className="font-mono text-[8px] uppercase tracking-wider px-1.5 py-0.5 rounded-full"
         style={{ color: 'rgba(156,163,175,0.5)', border: '1px solid rgba(156,163,175,0.15)', background: 'rgba(156,163,175,0.04)' }}
       >
-        Manual
+        Your submission
       </span>
     );
   }
@@ -42,7 +43,7 @@ function SourceOriginBadge({ source }: { source?: string }) {
         className="font-mono text-[8px] uppercase tracking-wider px-1.5 py-0.5 rounded-full"
         style={{ color: '#4d8c9e', border: '1px solid rgba(77,140,158,0.25)', background: 'rgba(77,140,158,0.06)' }}
       >
-        From Parallax
+        From your reflections
       </span>
     );
   }
@@ -52,7 +53,7 @@ function SourceOriginBadge({ source }: { source?: string }) {
         className="font-mono text-[8px] uppercase tracking-wider px-1.5 py-0.5 rounded-full"
         style={{ color: 'rgba(196,148,62,0.5)', border: '1px solid rgba(196,148,62,0.15)', background: 'rgba(196,148,62,0.04)' }}
       >
-        Seeded
+        Foundational
       </span>
     );
   }
@@ -98,7 +99,7 @@ function LoopDeliveryOnboarding({ axioms }: { axioms: Axiom[] }) {
 
   return (
     <div
-      className="mx-8 my-6 rounded-sm border border-border/50 bg-card/20 overflow-hidden"
+      className="mx-4 md:mx-8 my-6 rounded-sm border border-border/50 bg-card/20 overflow-hidden"
       style={{ borderLeft: "2px solid #FFD166" }}
       data-testid="card-loop-onboarding-axiom"
     >
@@ -132,7 +133,7 @@ function AxiomRow({ axiom }: { axiom: Axiom }) {
   return (
     <Link href={`/axiom/${axiom.id}`}>
       <div
-        className="group flex items-start gap-5 px-8 py-5 border-b border-border/50 hover:bg-accent/30 transition-colors duration-150 cursor-pointer"
+        className="group flex items-start gap-5 px-4 md:px-8 py-5 border-b border-border/50 hover:bg-accent/30 transition-colors duration-150 cursor-pointer"
         data-testid={`axiom-row-${axiom.id}`}
       >
         {/* Number */}
@@ -191,7 +192,7 @@ function AxiomRow({ axiom }: { axiom: Axiom }) {
         </div>
 
         {/* Arrow */}
-        <div className="flex-shrink-0 pt-1 opacity-0 group-hover:opacity-40 transition-opacity">
+        <div className="flex-shrink-0 pt-1 opacity-40 md:opacity-0 md:group-hover:opacity-40 transition-opacity">
           <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
             <path d="M2 7h10M8 3l4 4-4 4"/>
           </svg>
@@ -204,7 +205,7 @@ function AxiomRow({ axiom }: { axiom: Axiom }) {
 export default function TruthClaims() {
   const [filter, setFilter] = useState<string>("all");
   const { toast } = useToast();
-  const { data: axioms, isLoading } = useQuery<Axiom[]>({
+  const { data: axioms, isLoading, isError, refetch } = useQuery<Axiom[]>({
     queryKey: ["/api/axioms", "proving_ground"],
     queryFn: () => fetch("/api/axioms?stage=proving_ground").then(r => r.json()),
   });
@@ -240,8 +241,8 @@ export default function TruthClaims() {
   return (
     <div className="min-h-screen">
       {/* Page Header */}
-      <div className="px-8 pt-10 pb-6 border-b border-border">
-        <div className="flex items-end justify-between">
+      <div className="px-4 md:px-8 pt-10 pb-6 border-b border-border">
+        <div className="flex items-end justify-between gap-4">
           <div>
             <h1 className="font-mono text-xs tracking-widest-constitutional uppercase text-muted-foreground mb-2">
               Proposed Axioms
@@ -260,7 +261,7 @@ export default function TruthClaims() {
           </div>
           <Link href="/new">
             <button
-              className="text-[11px] font-mono tracking-widest-constitutional uppercase px-4 py-2 border border-border text-muted-foreground hover:text-foreground hover:border-foreground/30 transition-colors rounded-sm"
+              className="text-[11px] font-mono tracking-widest-constitutional uppercase px-4 py-2 border border-border text-muted-foreground hover:text-foreground hover:border-foreground/30 transition-colors rounded-sm flex-shrink-0"
               data-testid="button-new-synthesis"
             >
               + Submit Proposal
@@ -269,12 +270,12 @@ export default function TruthClaims() {
         </div>
 
         {/* Filters */}
-        <div className="mt-5 flex items-center gap-1">
+        <div className="mt-5 flex items-center gap-1 overflow-x-auto pb-1 -mb-1 flex-wrap md:flex-nowrap">
           {["all", "high", "medium-high", "medium", "medium-low", "low"].map((f) => (
             <button
               key={f}
               onClick={() => setFilter(f)}
-              className={`text-[10px] font-mono uppercase tracking-wider px-2.5 py-1 rounded-sm transition-colors ${
+              className={`text-[10px] font-mono uppercase tracking-wider px-2.5 py-1 rounded-sm transition-colors flex-shrink-0 ${
                 filter === f
                   ? "bg-accent text-accent-foreground"
                   : "text-muted-foreground/50 hover:text-muted-foreground hover:bg-accent/50"
@@ -284,7 +285,7 @@ export default function TruthClaims() {
               {f === "all" ? "All proposals" : f.toUpperCase()}
             </button>
           ))}
-          <div className="ml-auto">
+          <div className="ml-auto hidden md:block">
             <SourceLegend />
           </div>
         </div>
@@ -295,20 +296,45 @@ export default function TruthClaims() {
         <LoopDeliveryOnboarding axioms={axioms} />
       )}
       {isLoading ? (
-        <div className="px-8 py-12 text-muted-foreground/40 font-mono text-sm">
-          Loading…
+        <div className="px-4 md:px-8 py-6 space-y-4">
+          {[1, 2, 3].map((i) => (
+            <div key={i} className="flex items-start gap-5 py-5 border-b border-border/50">
+              <Skeleton className="h-4 w-8 flex-shrink-0" />
+              <div className="flex-1 space-y-3">
+                <Skeleton className="h-3 w-24" />
+                <Skeleton className="h-5 w-3/4" />
+                <Skeleton className="h-4 w-full" />
+                <Skeleton className="h-3 w-32" />
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : isError ? (
+        <div className="px-4 md:px-8 py-16 text-center">
+          <div className="max-w-sm mx-auto border border-border/50 rounded-sm p-6 bg-card/30">
+            <div className="font-mono text-xs uppercase tracking-widest-constitutional text-destructive/70 mb-3">
+              Unable to load proposals
+            </div>
+            <p className="text-sm text-muted-foreground/50 leading-relaxed mb-4">
+              Something went wrong while fetching your proposals. Please try again.
+            </p>
+            <button
+              onClick={() => refetch()}
+              className="text-xs font-mono uppercase tracking-wider text-primary hover:text-primary/80 transition-colors"
+            >
+              Retry
+            </button>
+          </div>
         </div>
       ) : filtered.length === 0 ? (
-        <div className="px-8 py-16 text-center">
+        <div className="px-4 md:px-8 py-16 text-center">
           <div className="font-serif text-xl text-muted-foreground/40 mb-3">
-            {filter === "all" ? "No proposals yet." : `No ${filter} confidence proposals.`}
+            {filter === "all" ? "Proposals will appear here as patterns crystallize across your reflections." : `No ${filter} confidence proposals.`}
           </div>
           {filter === "all" && (
-            <>
-              <p className="text-sm text-muted-foreground/40 leading-relaxed mb-4 max-w-sm mx-auto">
-                When Liminal questions beliefs and Parallax identifies patterns, proposals will surface here for your examination.
-              </p>
-            </>
+            <p className="text-sm text-muted-foreground/40 leading-relaxed mb-4 max-w-sm mx-auto">
+              As you explore beliefs in Liminal, track patterns in Parallax, and run experiments in Praxis, proposals will surface here for your examination.
+            </p>
           )}
         </div>
       ) : (

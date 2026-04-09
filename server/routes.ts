@@ -439,7 +439,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     if (!axiom) return res.status(404).json({ error: 'Axiom not found' });
 
     if (!process.env.ANTHROPIC_API_KEY && !process.env.OPENAI_API_KEY) {
-      return res.status(503).json({ error: 'AI enrichment requires ANTHROPIC_API_KEY or OPENAI_API_KEY', available: false });
+      return res.status(503).json({ error: 'Enrichment is temporarily unavailable. Please try again later.', available: false });
     }
 
     try {

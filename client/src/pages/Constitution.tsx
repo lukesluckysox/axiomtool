@@ -5,6 +5,7 @@ import ConfidenceBadge from "@/components/ConfidenceBadge";
 import { apiRequest } from "@/lib/queryClient";
 import { Link } from "wouter";
 import { useToast } from "@/hooks/use-toast";
+import { Skeleton } from "@/components/ui/skeleton";
 
 function Section({ label, children, note }: { label: string; children: React.ReactNode; note?: string }) {
   return (
@@ -31,7 +32,7 @@ function SourceBadge({ source }: { source?: string }) {
   );
   if (source === 'lumen_push') return (
     <span className="font-mono text-[9px] uppercase tracking-wider text-blue-400/50 border border-blue-400/20 px-1.5 py-0.5 rounded-sm">
-      pipeline
+      from your reflections
     </span>
   );
   return null;
@@ -69,6 +70,15 @@ function GoverningPrinciple({ axiom, rank }: { axiom: Axiom; rank: number }) {
             <div className="flex items-center gap-3 mt-2">
               <ConfidenceBadge confidence={axiom.confidence} />
               <SourceBadge source={(axiom as any).source} />
+              <a
+                href="https://liminal-app.up.railway.app"
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={(e) => e.stopPropagation()}
+                className="text-[10px] font-mono tracking-wider text-primary/50 hover:text-primary transition-colors ml-auto"
+              >
+                Question this further →
+              </a>
             </div>
           </div>
         </div>
@@ -239,12 +249,27 @@ export default function Constitution() {
     .map((item) => new Date("updatedAt" in item ? item.updatedAt : item.createdAt))
     .sort((a, b) => b.getTime() - a.getTime())[0];
 
-  if (isLoading) return <div className="px-8 py-12 font-mono text-sm text-muted-foreground/40">Loading…</div>;
+  if (isLoading) return (
+    <div className="max-w-2xl mx-auto px-4 md:px-8 pt-10 pb-20">
+      <Skeleton className="h-3 w-24 mb-2" />
+      <Skeleton className="h-8 w-64 mb-3" />
+      <Skeleton className="h-3 w-48 mb-8" />
+      <div className="space-y-4">
+        {[1, 2, 3].map((i) => (
+          <div key={i} className="py-5 border-b border-border/40">
+            <Skeleton className="h-4 w-full mb-2" />
+            <Skeleton className="h-4 w-3/4 mb-2" />
+            <Skeleton className="h-3 w-32" />
+          </div>
+        ))}
+      </div>
+    </div>
+  );
 
   const isEmpty = axioms.length === 0 && tensions.length === 0;
 
   return (
-    <div className="max-w-2xl mx-auto px-8 pt-10 pb-20">
+    <div className="max-w-2xl mx-auto px-4 md:px-8 pt-10 pb-20">
       {/* Document Header */}
       <div className="mb-10">
         <h1 className="font-mono text-[10px] tracking-widest-constitutional uppercase text-muted-foreground mb-2">
@@ -266,9 +291,9 @@ export default function Constitution() {
 
       {isEmpty ? (
         <div className="text-center py-12">
-          <div className="font-serif text-xl text-muted-foreground/40 mb-4">The Constitution is empty.</div>
+          <div className="font-serif text-xl text-muted-foreground/40 mb-4">Your living constitution will form here as principles are examined and adopted.</div>
           <p className="text-sm text-muted-foreground/50 leading-relaxed mb-6 max-w-sm mx-auto">
-            Examine and approve proposals from the Proposed Axioms to establish your first governing principles.
+            Examine and approve proposals from the Proving Ground to establish your first governing principles.
           </p>
           <Link href="/">
             <button className="text-xs font-mono tracking-wider text-primary hover:text-primary/80 transition-colors">

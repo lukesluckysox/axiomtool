@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Link, useLocation } from "wouter";
 import { useQuery } from "@tanstack/react-query";
+import { useTheme } from "next-themes";
 import type { Axiom, Tension, Revision } from "@shared/schema";
 
 const AxiomLogo = () => (
@@ -114,6 +115,40 @@ function SensitivityControl() {
   );
 }
 
+function ThemeToggle() {
+  const { theme, setTheme } = useTheme();
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+  if (!mounted) return null;
+
+  return (
+    <div className="px-5 pb-4">
+      <div className="text-[9px] text-sidebar-foreground/25 font-mono uppercase tracking-wider mb-2">
+        Theme
+      </div>
+      <div className="flex gap-1">
+        {[
+          { val: 'light', label: '☀' },
+          { val: 'dark', label: '☾' },
+          { val: 'system', label: 'SYS' },
+        ].map(({ val, label }) => (
+          <button
+            key={val}
+            onClick={() => setTheme(val)}
+            className={`flex-1 text-[9px] font-mono uppercase tracking-wider py-1.5 rounded-sm border transition-all duration-150 ${
+              theme === val
+                ? 'border-[#FFD166] text-[#FFD166] bg-[#FFD166]/8'
+                : 'border-sidebar-border text-sidebar-foreground/25 hover:text-sidebar-foreground/50 hover:border-sidebar-foreground/30'
+            }`}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export default function AppSidebar() {
   const [location] = useLocation();
 
@@ -195,16 +230,17 @@ export default function AppSidebar() {
         </Link>
       </div>
 
-      {/* Sensitivity */}
+      {/* Sensitivity + Theme */}
       <div className="mt-auto">
         <SensitivityControl />
+        <ThemeToggle />
       </div>
 
       {/* Footer */}
       <div className="px-5 pb-6">
         <div className="text-[10px] text-sidebar-foreground/25 font-mono uppercase tracking-wider leading-relaxed">
           AXIOM OS<br />
-          Fourth Tool
+          Synthesis Layer
         </div>
       </div>
     </aside>

@@ -115,7 +115,7 @@ function NumInput({
       <button
         type="button"
         onClick={() => onChange(Math.max(0, value - 1))}
-        className="w-7 h-7 rounded-sm border border-border text-muted-foreground hover:text-foreground hover:border-foreground/30 transition-colors font-mono text-sm flex items-center justify-center"
+        className="w-11 h-11 md:w-7 md:h-7 rounded-sm border border-border text-muted-foreground hover:text-foreground hover:border-foreground/30 transition-colors font-mono text-sm flex items-center justify-center"
       >
         −
       </button>
@@ -125,7 +125,7 @@ function NumInput({
       <button
         type="button"
         onClick={() => onChange(value + 1)}
-        className="w-7 h-7 rounded-sm border border-border text-muted-foreground hover:text-foreground hover:border-foreground/30 transition-colors font-mono text-sm flex items-center justify-center"
+        className="w-11 h-11 md:w-7 md:h-7 rounded-sm border border-border text-muted-foreground hover:text-foreground hover:border-foreground/30 transition-colors font-mono text-sm flex items-center justify-center"
       >
         +
       </button>
@@ -192,7 +192,7 @@ export default function NewSynthesis() {
   };
 
   return (
-    <div className="max-w-2xl mx-auto px-8 pt-10 pb-16">
+    <div className="max-w-2xl mx-auto px-4 md:px-8 pt-10 pb-16">
       {/* Header */}
       <div className="mb-8">
         <h1 className="font-mono text-xs tracking-widest-constitutional uppercase text-muted-foreground mb-3">
@@ -437,7 +437,7 @@ export default function NewSynthesis() {
             type="button"
             onClick={() => setStep((s) => s + 1)}
             disabled={!canProceed[step]}
-            className={`text-xs font-mono uppercase tracking-widest-constitutional px-5 py-2 rounded-sm transition-colors ${
+            className={`text-xs font-mono uppercase tracking-widest-constitutional px-5 py-2.5 min-h-[44px] rounded-sm transition-colors ${
               canProceed[step]
                 ? "bg-primary text-primary-foreground hover:bg-primary/90"
                 : "bg-muted text-muted-foreground/40 cursor-not-allowed"
@@ -451,7 +451,7 @@ export default function NewSynthesis() {
             type="button"
             onClick={submit}
             disabled={!canProceed[4] || createMutation.isPending}
-            className={`text-xs font-mono uppercase tracking-widest-constitutional px-5 py-2 rounded-sm transition-colors ${
+            className={`text-xs font-mono uppercase tracking-widest-constitutional px-5 py-2.5 min-h-[44px] rounded-sm transition-colors ${
               canProceed[4]
                 ? "bg-primary text-primary-foreground hover:bg-primary/90"
                 : "bg-muted text-muted-foreground/40 cursor-not-allowed"
