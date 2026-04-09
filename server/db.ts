@@ -2,13 +2,26 @@ import Database from "better-sqlite3";
 import { drizzle } from "drizzle-orm/better-sqlite3";
 import * as schema from "@shared/schema";
 import path from "path";
+import fs from "fs";
 
 const dbPath = process.env.RAILWAY_VOLUME_MOUNT_PATH
   ? `${process.env.RAILWAY_VOLUME_MOUNT_PATH}/axiom.db`
   : process.env.DATA_DIR
     ? `${process.env.DATA_DIR}/axiom.db`
     : path.resolve(process.cwd(), "axiom.db");
-console.log(`[axiomtool/db] SQLite path: ${dbPath} (volume: ${!!process.env.RAILWAY_VOLUME_MOUNT_PATH})`);
+
+fs.mkdirSync(path.dirname(dbPath), { recursive: true });
+
+const volumeSet = !!process.env.RAILWAY_VOLUME_MOUNT_PATH;
+console.log(`[axiom/db] SQLite path: ${dbPath}`);
+console.log(`[axiom/db] RAILWAY_VOLUME_MOUNT_PATH: ${process.env.RAILWAY_VOLUME_MOUNT_PATH ?? '(NOT SET)'}`);
+console.log(`[axiom/db] Persistent volume: ${volumeSet ? 'YES' : 'NO \u2014 data will be lost on redeploy'}`);
+if (!volumeSet) {
+  console.warn('[axiom/db] \u26a0\ufe0f  Set RAILWAY_VOLUME_MOUNT_PATH in Railway Variables to persist data across deploys.');
+}
+const dbExists = fs.existsSync(dbPath);
+console.log(`[axiom/db] DB file exists: ${dbExists}${dbExists ? ` (${(fs.statSync(dbPath).size / 1024).toFixed(1)} KB)` : ' \u2014 will create fresh'}`);
+
 const sqlite = new Database(dbPath);
 sqlite.pragma("journal_mode = WAL");
 sqlite.pragma("foreign_keys = ON");
