@@ -464,6 +464,31 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     }
   });
 
+  // ─── Internal: list users for Lumen Oracle ────────────────────────────────
+  app.get('/api/internal/users', (req: any, res: any) => {
+    const token = req.headers['x-lumen-internal-token'];
+    const expected = process.env.LUMEN_INTERNAL_TOKEN || process.env.JWT_SECRET || '';
+    if (!token || token !== expected) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+    try {
+      // Axiom has no users table — derive unique users from axioms
+      const { sqlite } = require('./db');
+      const rows = sqlite.prepare(
+        `SELECT DISTINCT user_id FROM axioms ORDER BY user_id`
+      ).all() as any[];
+      return res.json({
+        users: rows.map((r: any) => ({
+          username: 'user-' + r.user_id,
+          createdAt: null,
+        })),
+      });
+    } catch (err: any) {
+      console.error('[axiom/internal/users]', err);
+      return res.status(500).json({ error: err.message });
+    }
+  });
+
   // Auth guard for all /api/* except /api/auth/* and /api/health
   app.use('/api', (req: any, res: any, next: any) => {
     if (req.path.startsWith('/auth/') || req.path === '/health' || req.path.startsWith('/internal/')) return next();
