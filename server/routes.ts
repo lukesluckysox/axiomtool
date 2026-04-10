@@ -151,6 +151,19 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       // Store in session
       req.session.userId = lumenUserId;
       req.session.username = payload.username;
+
+      // Upsert into axiom_users so Oracle can see them
+      try {
+        const { sqlite } = require('./db');
+        sqlite.prepare(
+          `INSERT INTO axiom_users (id, username, email, lumen_user_id, created_at)
+           VALUES (?, ?, ?, ?, ?)
+           ON CONFLICT(id) DO UPDATE SET username = excluded.username`
+        ).run(lumenUserId, payload.username || null, (payload as any).email || null, lumenUserId, new Date().toISOString());
+      } catch (e: any) {
+        console.error('[axiom/sso] upsert user error:', e.message);
+      }
+
       // Persist session before redirect
       req.session.save((err: unknown) => {
         if (err) console.error('[axiom/sso] session save error:', err);
@@ -472,19 +485,90 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       return res.status(401).json({ error: 'Unauthorized' });
     }
     try {
-      // Axiom has no users table — derive unique users from axioms
       const { sqlite } = require('./db');
       const rows = sqlite.prepare(
-        `SELECT DISTINCT user_id FROM axioms ORDER BY user_id`
+        `SELECT id, username, email, plan, created_at FROM axiom_users ORDER BY created_at ASC`
       ).all() as any[];
       return res.json({
         users: rows.map((r: any) => ({
-          username: 'user-' + r.user_id,
-          createdAt: null,
+          username: r.username || ('user-' + r.id),
+          email: r.email || null,
+          plan: r.plan || 'free',
+          createdAt: r.created_at || null,
         })),
       });
     } catch (err: any) {
       console.error('[axiom/internal/users]', err);
+      return res.status(500).json({ error: err.message });
+    }
+  });
+
+  // ─── Internal: delete user (called by Lumen Oracle) ─────────────────────────
+  app.post('/api/internal/delete-user', (req: any, res: any) => {
+    const token = req.headers['x-lumen-internal-token'];
+    const expected = process.env.LUMEN_INTERNAL_TOKEN || process.env.JWT_SECRET || '';
+    if (!token || token !== expected) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+    try {
+      const { sqlite } = require('./db');
+      const { username, email } = req.body || {};
+      if (!username && !email) return res.status(400).json({ error: 'username or email required' });
+
+      let user: any = null;
+      if (email) {
+        user = sqlite.prepare(`SELECT id FROM axiom_users WHERE email = ?`).get(email.toLowerCase().trim());
+      }
+      if (!user && username) {
+        user = sqlite.prepare(`SELECT id FROM axiom_users WHERE username = ?`).get(username);
+      }
+      if (!user) return res.status(404).json({ ok: false, reason: 'User not found in Axiom' });
+
+      // Delete user content
+      sqlite.prepare(`DELETE FROM axioms WHERE user_id = ?`).run(user.id);
+      sqlite.prepare(`DELETE FROM tensions WHERE user_id = ?`).run(user.id);
+      sqlite.prepare(`DELETE FROM revisions WHERE user_id = ?`).run(user.id);
+      sqlite.prepare(`DELETE FROM constitutions WHERE user_id = ?`).run(user.id);
+      // Delete user record
+      sqlite.prepare(`DELETE FROM axiom_users WHERE id = ?`).run(user.id);
+
+      console.log(`[delete-user] Deleted Axiom user: ${username || email}`);
+      return res.json({ ok: true });
+    } catch (err: any) {
+      console.error('[axiom/internal/delete-user]', err);
+      return res.status(500).json({ error: err.message });
+    }
+  });
+
+  // ─── Internal: sync plan (called by Lumen Oracle) ───────────────────────────
+  app.post('/api/internal/sync-plan', (req: any, res: any) => {
+    const token = req.headers['x-lumen-internal-token'];
+    const expected = process.env.LUMEN_INTERNAL_TOKEN || process.env.JWT_SECRET || '';
+    if (!token || token !== expected) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+    try {
+      const { sqlite } = require('./db');
+      const { username, email, plan } = req.body || {};
+      if (!plan || !['free', 'pro', 'founder'].includes(plan)) {
+        return res.status(400).json({ error: 'Plan must be free, pro, or founder' });
+      }
+      if (!username && !email) return res.status(400).json({ error: 'username or email required' });
+
+      let user: any = null;
+      if (email) {
+        user = sqlite.prepare(`SELECT id FROM axiom_users WHERE email = ?`).get(email.toLowerCase().trim());
+      }
+      if (!user && username) {
+        user = sqlite.prepare(`SELECT id FROM axiom_users WHERE username = ?`).get(username);
+      }
+      if (!user) return res.status(404).json({ ok: false, reason: 'User not found in Axiom' });
+
+      sqlite.prepare(`UPDATE axiom_users SET plan = ? WHERE id = ?`).run(plan, user.id);
+      console.log(`[sync-plan] Updated Axiom user ${username || email} to plan=${plan}`);
+      return res.json({ ok: true, plan });
+    } catch (err: any) {
+      console.error('[axiom/internal/sync-plan]', err);
       return res.status(500).json({ error: err.message });
     }
   });

@@ -115,6 +115,10 @@ sqlite.exec(`
     username TEXT NOT NULL UNIQUE,
     email TEXT,
     lumen_user_id TEXT NOT NULL UNIQUE,
+    plan TEXT NOT NULL DEFAULT 'free',
     created_at TEXT NOT NULL
   )
 `);
+
+// Additive migration: plan column (no-op if already exists)
+try { sqlite.exec("ALTER TABLE axiom_users ADD COLUMN plan TEXT NOT NULL DEFAULT 'free'"); } catch {}
