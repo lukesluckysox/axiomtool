@@ -5,7 +5,7 @@ import type { Axiom } from "@shared/schema";
 import ConfidenceBadge from "@/components/ConfidenceBadge";
 import SourceTags, { SourceLegend } from "@/components/SourceTags";
 import { useToast } from "@/hooks/use-toast";
-import { Skeleton } from "@/components/ui/skeleton";
+import { SkeletonLine, SkeletonCard } from "@/components/Skeleton";
 
 const CONFIDENCE_ORDER = ["high", "medium-high", "medium", "medium-low", "low"];
 
@@ -302,17 +302,26 @@ export default function TruthClaims() {
         <LoopDeliveryOnboarding axioms={axioms} />
       )}
       {isLoading ? (
-        <div className="px-4 md:px-8 py-6 space-y-4">
+        <div className="px-4 md:px-8 py-6 space-y-5">
+          {/* Filter pill skeletons */}
+          <div className="flex items-center gap-2">
+            {[16, 12, 20, 14, 18, 10].map((w, i) => (
+              <SkeletonLine key={i} className="h-6 rounded-sm" style={{ width: `${w * 4}px` }} />
+            ))}
+          </div>
+          {/* Card skeletons */}
           {[1, 2, 3].map((i) => (
-            <div key={i} className="flex items-start gap-5 py-5 border-b border-border/50">
-              <Skeleton className="h-4 w-8 flex-shrink-0" />
-              <div className="flex-1 space-y-3">
-                <Skeleton className="h-3 w-24" />
-                <Skeleton className="h-5 w-3/4" />
-                <Skeleton className="h-4 w-full" />
-                <Skeleton className="h-3 w-32" />
+            <SkeletonCard key={i}>
+              <div className="flex items-start gap-5">
+                <SkeletonLine className="h-4 w-8 flex-shrink-0" />
+                <div className="flex-1 space-y-3">
+                  <SkeletonLine className="w-24" />
+                  <SkeletonLine className="h-5 w-3/4" />
+                  <SkeletonLine className="h-4 w-full" />
+                  <SkeletonLine className="w-32" />
+                </div>
               </div>
-            </div>
+            </SkeletonCard>
           ))}
         </div>
       ) : isError ? (
