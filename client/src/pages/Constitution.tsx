@@ -291,9 +291,9 @@ export default function Constitution() {
 
       {isEmpty ? (
         <div className="text-center py-12">
-          <div className="font-serif text-xl text-muted-foreground/40 mb-4">Your living constitution will form here as principles are examined and adopted.</div>
+          <div className="font-serif text-xl text-muted-foreground/40 mb-4">My living constitution forms here as I examine and adopt principles.</div>
           <p className="text-sm text-muted-foreground/50 leading-relaxed mb-6 max-w-sm mx-auto">
-            Examine and approve proposals from the Proving Ground to establish your first governing principles.
+            When I promote a proposal from the Proving Ground, it becomes a governing principle — a truth I’ve tested and chosen to live by. Tensions between principles are tracked as amendments.
           </p>
           <Link href="/">
             <button className="text-xs font-mono tracking-wider text-primary hover:text-primary/80 transition-colors">

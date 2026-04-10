@@ -329,11 +329,11 @@ export default function TruthClaims() {
       ) : filtered.length === 0 ? (
         <div className="px-4 md:px-8 py-16 text-center">
           <div className="font-serif text-xl text-muted-foreground/40 mb-3">
-            {filter === "all" ? "Proposals will appear here as patterns crystallize across your reflections." : `No ${filter} confidence proposals.`}
+            {filter === "all" ? "No proposals yet. As I explore beliefs in Liminal, track patterns in Parallax, and test hypotheses in Praxis, truth claims will surface here for my examination." : `No ${filter} confidence proposals.`}
           </div>
           {filter === "all" && (
             <p className="text-sm text-muted-foreground/40 leading-relaxed mb-4 max-w-sm mx-auto">
-              As you explore beliefs in Liminal, track patterns in Parallax, and run experiments in Praxis, proposals will surface here for your examination.
+              Each proposal carries a confidence level. I examine the evidence, then decide: deepen it through synthesis, or promote it to the Constitution if the truth is self-evident.
             </p>
           )}
         </div>
