@@ -210,19 +210,25 @@ export default function TruthClaims() {
     queryFn: () => fetch("/api/axioms?stage=proving_ground").then(r => r.json()),
   });
 
-  // Toast: once per session if lumen_push axioms are present
+  // Toast: once per session if recent inbound truth claims exist
   useEffect(() => {
-    if (!axioms || axioms.length === 0) return;
     const sessionKey = 'axiom_loop_toast_shown';
     if (sessionStorage.getItem(sessionKey)) return;
-    const lumenCount = axioms.filter((a) => (a as any).source === 'lumen_push').length;
-    if (lumenCount > 0) {
-      sessionStorage.setItem(sessionKey, '1');
-      toast({
-        description: `The Loop has delivered ${lumenCount} new proposition${lumenCount !== 1 ? 's' : ''} for examination.`,
-      });
-    }
-  }, [axioms]);
+    fetch('/api/loop/recent-inbound')
+      .then(r => r.ok ? r.json() : null)
+      .then(data => {
+        if (!data?.events?.length) return;
+        const count = data.events[0].count;
+        if (count <= 0) return;
+        sessionStorage.setItem(sessionKey, '1');
+        const msg = count === 1
+          ? 'A truth claim surfaced for examination.'
+          : `${count} truth claims surfaced for examination.`;
+        const { dismiss } = toast({ description: msg });
+        setTimeout(dismiss, 4000);
+      })
+      .catch(() => {});
+  }, []);
 
   const sorted = (axioms ?? []).slice().sort((a, b) => {
     const ai = CONFIDENCE_ORDER.indexOf(a.confidence);

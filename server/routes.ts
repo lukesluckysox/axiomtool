@@ -579,6 +579,26 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     requireAuth(req, res, next);
   });
 
+  // ─── Loop: recent inbound truth claims ─────────────────────────────────────
+  app.get('/api/loop/recent-inbound', (req: any, res: any) => {
+    const userId = getUserId(req);
+    const { sqlite } = require('./db');
+    const twoHoursAgo = new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString();
+    try {
+      const rows = sqlite.prepare(
+        `SELECT created_at FROM axioms WHERE user_id = ? AND source = 'lumen_push' AND stage = 'proving_ground' AND created_at >= ? ORDER BY created_at DESC`
+      ).all(userId, twoHoursAgo) as { created_at: string }[];
+
+      const events = rows.length > 0
+        ? [{ source: 'loop', type: 'truth_claim', count: rows.length, latestAt: rows[0].created_at }]
+        : [];
+      res.json({ events });
+    } catch (err: any) {
+      console.error('[axiom/loop/recent-inbound]', err);
+      res.status(500).json({ error: err.message });
+    }
+  });
+
   // ─── Axioms ────────────────────────────────────────────────────────────────
   // ─── AI Enrichment ────────────────────────────────────────────────────────
   app.post('/api/axioms/:id/enrich', async (req: any, res: any) => {
