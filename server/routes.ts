@@ -17,6 +17,45 @@ import {
 // Returns null if neither is available.
 interface AIResult { text: string }
 
+// Strip markdown code fences (```json ... ```) that LLMs sometimes wrap around JSON output
+function stripMarkdownFences(text: string): string {
+  const trimmed = text.trim();
+  const fenceMatch = trimmed.match(/^```(?:json)?\s*\n?([\s\S]*?)\n?\s*```$/);
+  if (fenceMatch) return fenceMatch[1].trim();
+  return trimmed;
+}
+
+// Detect and fix malformed claim text like "I am someone who 'recurring belief pattern.'"
+// These are raw taxonomy labels stuffed into a template string instead of real sentences.
+function sanitizeClaimText(text: string): string {
+  // Pattern: "I am someone who '<raw_label>.'" or "I am someone who '<raw_label>' ..."
+  const templatePattern = /^I am someone who ['"](.+?)['"]\s*\.?\s*(.*)$/i;
+  const match = text.match(templatePattern);
+  if (match) {
+    const rawLabel = match[1].trim().replace(/\.$/, '');
+    const trailing = match[2].trim().replace(/^\.\s*/, '');
+    // Transform the raw label into a proper sentence
+    if (trailing && trailing.length > 10) {
+      // Trailing text is substantial — try to incorporate it as a second sentence
+      const trailingSentence = trailing.charAt(0).toUpperCase() + trailing.slice(1);
+      return `A pattern of ${rawLabel.toLowerCase()} shapes how I interpret events and make decisions. ${trailingSentence.replace(/\.\s*$/, '')}.`;
+    }
+    return `A pattern of ${rawLabel.toLowerCase()} shapes how I interpret events and make decisions.`;
+  }
+
+  // Check for other signs of raw labels: very short, no verb, no punctuation
+  if (text.length < 15 && !text.includes(' ') && !text.endsWith('.')) {
+    return `A recurring pattern of ${text.toLowerCase()} has been observed across my reflections.`;
+  }
+
+  // Ensure the text ends with proper punctuation
+  if (text.length > 0 && !/[.!?]$/.test(text)) {
+    return text + '.';
+  }
+
+  return text;
+}
+
 async function aiComplete(opts: {
   system: string;
   user: string;
@@ -41,7 +80,8 @@ async function aiComplete(opts: {
           : opts.user }],
       });
       const block = msg.content[0];
-      return { text: block.type === 'text' ? block.text : '' };
+      const raw = block.type === 'text' ? block.text : '';
+      return { text: opts.jsonMode ? stripMarkdownFences(raw) : raw };
     } catch (err: any) {
       console.error('[ai/anthropic]', err.message);
       // Fall through to OpenAI if available
@@ -62,7 +102,8 @@ async function aiComplete(opts: {
       temperature: opts.temperature ?? 0.65,
       max_tokens: opts.maxTokens || 1024,
     });
-    return { text: completion.choices[0].message.content || '' };
+    const raw = completion.choices[0].message.content || '';
+    return { text: opts.jsonMode ? stripMarkdownFences(raw) : raw };
   }
 
   return null; // no key configured
@@ -219,17 +260,20 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       return res.status(400).json({ error: 'truthClaim is required' });
     }
 
+    // Sanitize incoming claim text to prevent raw labels rendering as claims
+    const sanitizedClaim = sanitizeClaimText(truthClaim);
+
     try {
       // Idempotent upsert: if an axiom with same title + source already exists, update it
       const existingAxioms = storage.getAxioms(String(userId));
       const existing = existingAxioms.find(a =>
-        a.title === (title || truthClaim.slice(0, 200)) &&
+        a.title === (title || sanitizedClaim.slice(0, 200)) &&
         a.source === 'lumen_push'
       );
 
       if (existing) {
         const updated = storage.updateAxiom(existing.id, {
-          truthClaim,
+          truthClaim: sanitizedClaim,
           signal,
           convergence,
           interpretation,
@@ -249,8 +293,8 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
 
       const axiom = storage.createAxiom(
         {
-          title: title || truthClaim.slice(0, 200),
-          truthClaim,
+          title: title || sanitizedClaim.slice(0, 200),
+          truthClaim: sanitizedClaim,
           signal,
           convergence,
           interpretation,
@@ -627,15 +671,35 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         maxTokens: 800,
       });
 
-      if (!result) return res.status(503).json({ error: 'AI call failed' });
+      if (!result) {
+        return res.status(503).json({ error: 'No AI provider is available. Check ANTHROPIC_API_KEY or OPENAI_API_KEY configuration.' });
+      }
 
-      const enriched = JSON.parse(result.text) as Partial<InsertAxiom>;
+      let enriched: Record<string, unknown>;
+      try {
+        enriched = JSON.parse(result.text);
+      } catch (parseErr: any) {
+        console.error('[axiom/enrich] JSON parse failed. Raw AI output:', result.text.slice(0, 500));
+        return res.status(502).json({ error: 'AI returned malformed output. Please try again.' });
+      }
+
       const allowed = ['signal', 'convergence', 'interpretation', 'truthClaim', 'workingPrinciple'] as const;
       const update: Partial<InsertAxiom> = {};
       for (const key of allowed) {
         if (enriched[key] && typeof enriched[key] === 'string') {
-          (update as any)[key] = (enriched[key] as string).trim();
+          let value = (enriched[key] as string).trim();
+          // Validate claim/principle are grammatical sentences, not raw labels
+          if (key === 'truthClaim' || key === 'workingPrinciple') {
+            value = sanitizeClaimText(value);
+          }
+          (update as any)[key] = value;
         }
+      }
+
+      // Ensure we got at least the truth claim from the AI
+      if (!update.truthClaim) {
+        console.error('[axiom/enrich] AI returned no truthClaim. Output keys:', Object.keys(enriched));
+        return res.status(502).json({ error: 'AI did not produce a valid truth claim. Please try again.' });
       }
 
       storage.updateAxiom(id, update, userId);
@@ -660,7 +724,11 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       }).catch(() => { /* swallow — emitter logs internally */ });
     } catch (err: any) {
       console.error('[axiom/enrich]', err);
-      res.status(500).json({ error: err.message });
+      const msg = err.status === 401 ? 'AI provider authentication failed. Check your API key.'
+        : err.status === 429 ? 'AI provider rate limit reached. Please wait a moment and try again.'
+        : err.status >= 500 ? 'AI provider is experiencing issues. Please try again shortly.'
+        : `Enrichment failed: ${err.message}`;
+      res.status(err.status >= 400 && err.status < 600 ? err.status : 500).json({ error: msg });
     }
   });
 

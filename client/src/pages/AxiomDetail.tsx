@@ -67,8 +67,20 @@ export default function AxiomDetail({ params }: { params: { id: string } }) {
         toast({ description: "Synthesized and enshrined as governing principle." });
       }
     },
-    onError: () => {
-      toast({ variant: "destructive", description: "Enrichment is temporarily unavailable. Please try again later." });
+    onError: (err: Error) => {
+      // Extract the server error message from the "status: {json}" format
+      let message = "Enrichment failed. Please try again.";
+      try {
+        const jsonMatch = err.message.match(/^\d+:\s*(.+)$/);
+        if (jsonMatch) {
+          const parsed = JSON.parse(jsonMatch[1]);
+          if (parsed.error) message = parsed.error;
+        }
+      } catch {
+        // Fall back to raw message if parsing fails
+        if (err.message && !err.message.includes('<!DOCTYPE')) message = err.message;
+      }
+      toast({ variant: "destructive", description: message });
     },
   });
 
