@@ -17,6 +17,45 @@ import {
 // Returns null if neither is available.
 interface AIResult { text: string }
 
+// Strip markdown code fences (```json ... ```) that LLMs sometimes wrap around JSON output
+function stripMarkdownFences(text: string): string {
+  const trimmed = text.trim();
+  const fenceMatch = trimmed.match(/^```(?:json)?\s*\n?([\s\S]*?)\n?\s*```$/);
+  if (fenceMatch) return fenceMatch[1].trim();
+  return trimmed;
+}
+
+// Detect and fix malformed claim text like "I am someone who 'recurring belief pattern.'"
+// These are raw taxonomy labels stuffed into a template string instead of real sentences.
+function sanitizeClaimText(text: string): string {
+  // Pattern: "I am someone who '<raw_label>.'" or "I am someone who '<raw_label>' ..."
+  const templatePattern = /^I am someone who ['"](.+?)['"]\s*\.?\s*(.*)$/i;
+  const match = text.match(templatePattern);
+  if (match) {
+    const rawLabel = match[1].trim().replace(/\.$/, '');
+    const trailing = match[2].trim().replace(/^\.\s*/, '');
+    // Transform the raw label into a proper sentence
+    if (trailing && trailing.length > 10) {
+      // Trailing text is substantial — try to incorporate it as a second sentence
+      const trailingSentence = trailing.charAt(0).toUpperCase() + trailing.slice(1);
+      return `A pattern of ${rawLabel.toLowerCase()} shapes how I interpret events and make decisions. ${trailingSentence.replace(/\.\s*$/, '')}.`;
+    }
+    return `A pattern of ${rawLabel.toLowerCase()} shapes how I interpret events and make decisions.`;
+  }
+
+  // Check for other signs of raw labels: very short, no verb, no punctuation
+  if (text.length < 15 && !text.includes(' ') && !text.endsWith('.')) {
+    return `A recurring pattern of ${text.toLowerCase()} has been observed across my reflections.`;
+  }
+
+  // Ensure the text ends with proper punctuation
+  if (text.length > 0 && !/[.!?]$/.test(text)) {
+    return text + '.';
+  }
+
+  return text;
+}
+
 async function aiComplete(opts: {
   system: string;
   user: string;
@@ -41,7 +80,8 @@ async function aiComplete(opts: {
           : opts.user }],
       });
       const block = msg.content[0];
-      return { text: block.type === 'text' ? block.text : '' };
+      const raw = block.type === 'text' ? block.text : '';
+      return { text: opts.jsonMode ? stripMarkdownFences(raw) : raw };
     } catch (err: any) {
       console.error('[ai/anthropic]', err.message);
       // Fall through to OpenAI if available
@@ -62,7 +102,8 @@ async function aiComplete(opts: {
       temperature: opts.temperature ?? 0.65,
       max_tokens: opts.maxTokens || 1024,
     });
-    return { text: completion.choices[0].message.content || '' };
+    const raw = completion.choices[0].message.content || '';
+    return { text: opts.jsonMode ? stripMarkdownFences(raw) : raw };
   }
 
   return null; // no key configured
@@ -121,7 +162,24 @@ function generateTemplatePreamble(axioms: Axiom[], tensions: Tension[], revision
 export async function registerRoutes(httpServer: Server, app: Express): Promise<Server> {
   // ─── Health ────────────────────────────────────────────────────────────────
   app.get("/api/health", (_req, res) => {
-    res.json({ status: "ok", timestamp: new Date().toISOString() });
+    const fs = require('fs');
+    const path = require('path');
+    const volPath = process.env.RAILWAY_VOLUME_MOUNT_PATH;
+    const dbFile = volPath ? `${volPath}/axiom.db` : process.env.DATA_DIR ? `${process.env.DATA_DIR}/axiom.db` : 'axiom.db (ephemeral)';
+    const resolvedPath = volPath ? `${volPath}/axiom.db` : process.env.DATA_DIR ? `${process.env.DATA_DIR}/axiom.db` : path.resolve(process.cwd(), 'axiom.db');
+    const dbExists = fs.existsSync(resolvedPath);
+    const dbSize = dbExists ? (fs.statSync(resolvedPath).size / 1024).toFixed(1) + ' KB' : 'N/A';
+    res.json({
+      status: "ok",
+      timestamp: new Date().toISOString(),
+      persistence: {
+        volumeMounted: !!volPath,
+        volumePath: volPath ?? '(none)',
+        dbFile,
+        dbExists,
+        dbSize,
+      },
+    });
   });
 
   // ─── SSO Auth ────────────────────────────────────────────────────────────────
@@ -134,6 +192,19 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       // Store in session
       req.session.userId = lumenUserId;
       req.session.username = payload.username;
+
+      // Upsert into axiom_users so Oracle can see them
+      try {
+        const { sqlite } = require('./db');
+        sqlite.prepare(
+          `INSERT INTO axiom_users (id, username, email, lumen_user_id, created_at)
+           VALUES (?, ?, ?, ?, ?)
+           ON CONFLICT(id) DO UPDATE SET username = excluded.username`
+        ).run(lumenUserId, payload.username || null, (payload as any).email || null, lumenUserId, new Date().toISOString());
+      } catch (e: any) {
+        console.error('[axiom/sso] upsert user error:', e.message);
+      }
+
       // Persist session before redirect
       req.session.save((err: unknown) => {
         if (err) console.error('[axiom/sso] session save error:', err);
@@ -189,17 +260,20 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       return res.status(400).json({ error: 'truthClaim is required' });
     }
 
+    // Sanitize incoming claim text to prevent raw labels rendering as claims
+    const sanitizedClaim = sanitizeClaimText(truthClaim);
+
     try {
       // Idempotent upsert: if an axiom with same title + source already exists, update it
       const existingAxioms = storage.getAxioms(String(userId));
       const existing = existingAxioms.find(a =>
-        a.title === (title || truthClaim.slice(0, 200)) &&
+        a.title === (title || sanitizedClaim.slice(0, 200)) &&
         a.source === 'lumen_push'
       );
 
       if (existing) {
         const updated = storage.updateAxiom(existing.id, {
-          truthClaim,
+          truthClaim: sanitizedClaim,
           signal,
           convergence,
           interpretation,
@@ -219,8 +293,8 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
 
       const axiom = storage.createAxiom(
         {
-          title: title || truthClaim.slice(0, 200),
-          truthClaim,
+          title: title || sanitizedClaim.slice(0, 200),
+          truthClaim: sanitizedClaim,
           signal,
           convergence,
           interpretation,
@@ -447,10 +521,126 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     }
   });
 
+  // ─── Internal: list users for Lumen Oracle ────────────────────────────────
+  app.get('/api/internal/users', (req: any, res: any) => {
+    const token = req.headers['x-lumen-internal-token'];
+    const expected = process.env.LUMEN_INTERNAL_TOKEN || process.env.JWT_SECRET || '';
+    if (!token || token !== expected) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+    try {
+      const { sqlite } = require('./db');
+      const rows = sqlite.prepare(
+        `SELECT id, username, email, plan, created_at FROM axiom_users ORDER BY created_at ASC`
+      ).all() as any[];
+      return res.json({
+        users: rows.map((r: any) => ({
+          username: r.username || ('user-' + r.id),
+          email: r.email || null,
+          plan: r.plan || 'free',
+          createdAt: r.created_at || null,
+        })),
+      });
+    } catch (err: any) {
+      console.error('[axiom/internal/users]', err);
+      return res.status(500).json({ error: err.message });
+    }
+  });
+
+  // ─── Internal: delete user (called by Lumen Oracle) ─────────────────────────
+  app.post('/api/internal/delete-user', (req: any, res: any) => {
+    const token = req.headers['x-lumen-internal-token'];
+    const expected = process.env.LUMEN_INTERNAL_TOKEN || process.env.JWT_SECRET || '';
+    if (!token || token !== expected) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+    try {
+      const { sqlite } = require('./db');
+      const { username, email } = req.body || {};
+      if (!username && !email) return res.status(400).json({ error: 'username or email required' });
+
+      let user: any = null;
+      if (email) {
+        user = sqlite.prepare(`SELECT id FROM axiom_users WHERE email = ?`).get(email.toLowerCase().trim());
+      }
+      if (!user && username) {
+        user = sqlite.prepare(`SELECT id FROM axiom_users WHERE username = ?`).get(username);
+      }
+      if (!user) return res.status(404).json({ ok: false, reason: 'User not found in Axiom' });
+
+      // Delete user content
+      sqlite.prepare(`DELETE FROM axioms WHERE user_id = ?`).run(user.id);
+      sqlite.prepare(`DELETE FROM tensions WHERE user_id = ?`).run(user.id);
+      sqlite.prepare(`DELETE FROM revisions WHERE user_id = ?`).run(user.id);
+      sqlite.prepare(`DELETE FROM constitutions WHERE user_id = ?`).run(user.id);
+      // Delete user record
+      sqlite.prepare(`DELETE FROM axiom_users WHERE id = ?`).run(user.id);
+
+      console.log(`[delete-user] Deleted Axiom user: ${username || email}`);
+      return res.json({ ok: true });
+    } catch (err: any) {
+      console.error('[axiom/internal/delete-user]', err);
+      return res.status(500).json({ error: err.message });
+    }
+  });
+
+  // ─── Internal: sync plan (called by Lumen Oracle) ───────────────────────────
+  app.post('/api/internal/sync-plan', (req: any, res: any) => {
+    const token = req.headers['x-lumen-internal-token'];
+    const expected = process.env.LUMEN_INTERNAL_TOKEN || process.env.JWT_SECRET || '';
+    if (!token || token !== expected) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+    try {
+      const { sqlite } = require('./db');
+      const { username, email, plan } = req.body || {};
+      if (!plan || !['free', 'pro', 'founder'].includes(plan)) {
+        return res.status(400).json({ error: 'Plan must be free, pro, or founder' });
+      }
+      if (!username && !email) return res.status(400).json({ error: 'username or email required' });
+
+      let user: any = null;
+      if (email) {
+        user = sqlite.prepare(`SELECT id FROM axiom_users WHERE email = ?`).get(email.toLowerCase().trim());
+      }
+      if (!user && username) {
+        user = sqlite.prepare(`SELECT id FROM axiom_users WHERE username = ?`).get(username);
+      }
+      if (!user) return res.status(404).json({ ok: false, reason: 'User not found in Axiom' });
+
+      sqlite.prepare(`UPDATE axiom_users SET plan = ? WHERE id = ?`).run(plan, user.id);
+      console.log(`[sync-plan] Updated Axiom user ${username || email} to plan=${plan}`);
+      return res.json({ ok: true, plan });
+    } catch (err: any) {
+      console.error('[axiom/internal/sync-plan]', err);
+      return res.status(500).json({ error: err.message });
+    }
+  });
+
   // Auth guard for all /api/* except /api/auth/* and /api/health
   app.use('/api', (req: any, res: any, next: any) => {
     if (req.path.startsWith('/auth/') || req.path === '/health' || req.path.startsWith('/internal/')) return next();
     requireAuth(req, res, next);
+  });
+
+  // ─── Loop: recent inbound truth claims ─────────────────────────────────────
+  app.get('/api/loop/recent-inbound', (req: any, res: any) => {
+    const userId = getUserId(req);
+    const { sqlite } = require('./db');
+    const twoHoursAgo = new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString();
+    try {
+      const rows = sqlite.prepare(
+        `SELECT created_at FROM axioms WHERE user_id = ? AND source = 'lumen_push' AND stage = 'proving_ground' AND created_at >= ? ORDER BY created_at DESC`
+      ).all(userId, twoHoursAgo) as { created_at: string }[];
+
+      const events = rows.length > 0
+        ? [{ source: 'loop', type: 'truth_claim', count: rows.length, latestAt: rows[0].created_at }]
+        : [];
+      res.json({ events });
+    } catch (err: any) {
+      console.error('[axiom/loop/recent-inbound]', err);
+      res.status(500).json({ error: err.message });
+    }
   });
 
   // ─── Axioms ────────────────────────────────────────────────────────────────
@@ -481,15 +671,35 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         maxTokens: 800,
       });
 
-      if (!result) return res.status(503).json({ error: 'AI call failed' });
+      if (!result) {
+        return res.status(503).json({ error: 'No AI provider is available. Check ANTHROPIC_API_KEY or OPENAI_API_KEY configuration.' });
+      }
 
-      const enriched = JSON.parse(result.text) as Partial<InsertAxiom>;
+      let enriched: Record<string, unknown>;
+      try {
+        enriched = JSON.parse(result.text);
+      } catch (parseErr: any) {
+        console.error('[axiom/enrich] JSON parse failed. Raw AI output:', result.text.slice(0, 500));
+        return res.status(502).json({ error: 'AI returned malformed output. Please try again.' });
+      }
+
       const allowed = ['signal', 'convergence', 'interpretation', 'truthClaim', 'workingPrinciple'] as const;
       const update: Partial<InsertAxiom> = {};
       for (const key of allowed) {
         if (enriched[key] && typeof enriched[key] === 'string') {
-          (update as any)[key] = (enriched[key] as string).trim();
+          let value = (enriched[key] as string).trim();
+          // Validate claim/principle are grammatical sentences, not raw labels
+          if (key === 'truthClaim' || key === 'workingPrinciple') {
+            value = sanitizeClaimText(value);
+          }
+          (update as any)[key] = value;
         }
+      }
+
+      // Ensure we got at least the truth claim from the AI
+      if (!update.truthClaim) {
+        console.error('[axiom/enrich] AI returned no truthClaim. Output keys:', Object.keys(enriched));
+        return res.status(502).json({ error: 'AI did not produce a valid truth claim. Please try again.' });
       }
 
       storage.updateAxiom(id, update, userId);
@@ -514,7 +724,11 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       }).catch(() => { /* swallow — emitter logs internally */ });
     } catch (err: any) {
       console.error('[axiom/enrich]', err);
-      res.status(500).json({ error: err.message });
+      const msg = err.status === 401 ? 'AI provider authentication failed. Check your API key.'
+        : err.status === 429 ? 'AI provider rate limit reached. Please wait a moment and try again.'
+        : err.status >= 500 ? 'AI provider is experiencing issues. Please try again shortly.'
+        : `Enrichment failed: ${err.message}`;
+      res.status(err.status >= 400 && err.status < 600 ? err.status : 500).json({ error: msg });
     }
   });
 
