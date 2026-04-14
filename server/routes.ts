@@ -272,8 +272,6 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       const existingAxioms = storage.getAxioms(String(userId));
       const existing = existingAxioms.find(a =>
         a.title === (title || sanitizedClaim.slice(0, 200)) &&
-        a.source === 'lumen_push'
-        a.title === (title || truthClaim.slice(0, 200)) &&
         a.source === resolvedSource
       );
 
@@ -619,6 +617,10 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       return res.json({ ok: true, plan });
     } catch (err: any) {
       console.error('[axiom/internal/sync-plan]', err);
+      return res.status(500).json({ error: err.message });
+    }
+  });
+
   // ─── Internal: all tensions for cross-app consumption ────────────────────
   app.get('/api/internal/tensions', (req: any, res: any) => {
     const token = req.headers['x-lumen-internal-token'];
